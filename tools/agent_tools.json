@@ -1,0 +1,46 @@
+{
+  "tools": [
+    {
+      "name": "search",
+      "description": "Search all exported function data for keywords",
+      "parameters": {
+        "keyword": "string"
+      }
+    },
+    {
+      "name": "get_function",
+      "description": "Retrieve full function information including assembly and decompiler output",
+      "parameters": {
+        "address": "string"
+      }
+    },
+    {
+      "name": "search_imports",
+      "description": "Find imported APIs related to a keyword",
+      "parameters": {
+        "keyword": "string"
+      }
+    },
+    {
+      "name": "search_strings",
+      "description": "Find strings referenced by the binary",
+      "parameters": {
+        "keyword": "string"
+      }
+    },
+    {
+      "name": "get_callees",
+      "description": "Find functions called by a function",
+      "parameters": {
+        "address": "string"
+      }
+    },
+    {
+      "name": "get_callers",
+      "description": "Find functions calling a function",
+      "parameters": {
+        "address": "string"
+      }
+    }
+  ]
+}

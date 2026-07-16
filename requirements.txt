@@ -1,0 +1,7 @@
+# Host-side analysis tools. The Ghidra Script Manager exporter uses Ghidra's
+# own Python/Java environment and does not install these packages.
+flask
+requests
+numpy
+chromadb
+sentence-transformers

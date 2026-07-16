@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+chroma/
+ghidra_ai_chroma/
+ghidra_ai_exports/
+vectors/
+*.sqlite
+*.sqlite3
+decompiled_cache.json
+re_results.json
+ai_context.json
+function_index.json
+name_review_queue.json
+*.log
