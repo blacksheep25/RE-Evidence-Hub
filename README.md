@@ -177,6 +177,10 @@ AI should use this project as an evidence retriever, not as an oracle.
   leads only.
 - Record confirmed names with [function annotations](docs/function-annotations.md)
   so later sessions do not need to rediscover them.
+- For unattended, resumable runs (an MCP client naming functions overnight), see
+  [Autonomous investigation over MCP](docs/autonomous-agent.md): the MCP server's
+  `binary_next_target` / `binary_annotate` (guarded write) / `binary_progress`
+  tools turn the export into durable, compaction-safe agent memory.
 
 ## Project Layout
 
