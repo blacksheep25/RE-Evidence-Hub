@@ -13,4 +13,5 @@ re_results.json
 ai_context.json
 function_index.json
 name_review_queue.json
+class_registry.json
 *.log
