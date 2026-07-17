@@ -1,0 +1,13 @@
+# Optional dependency for the headless export driver (tools/headless_export.py).
+#
+# Ghidra 11.3+ removed Jython, so running the exporter without the Ghidra GUI
+# goes through PyGhidra (CPython 3 + JPype). PyGhidra requires a local Ghidra
+# install (>= 12.0) and a JDK 21; it does not bundle Ghidra itself.
+#
+# Prefer the offline install from your Ghidra distribution so the JPype build
+# matches your Python version exactly:
+#   pip install --no-index -f <GHIDRA>/Ghidra/Features/PyGhidra/pypkg/dist pyghidra
+#
+# The online install below works too, but only if a compatible JPype wheel
+# exists for your interpreter.
+pyghidra
