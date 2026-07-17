@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "re-evidence-hub"
+version = "0.1.0"
+description = "Ghidra AI Exporter — portable binary evidence with local query, HTTP/MCP APIs, and a reversible annotation overlay."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "See repository" }
+# Supported baseline only. The Ghidra Script Manager exporter runs in Ghidra's
+# own Python and does not use these. Heavier stacks are optional extras below.
+dependencies = [
+    "flask",
+    "requests",
+    "numpy",
+]
+
+[project.optional-dependencies]
+# Experimental semantic/vector search (pulls in PyTorch). Leads only.
+semantic = ["chromadb", "sentence-transformers"]
+# Headless export via PyGhidra (also needs a local Ghidra install + JDK 21).
+headless = ["pyghidra"]
+
+[project.scripts]
+revhub = "revhub_cli:main"
+revhub-doctor = "revhub_cli:doctor"
+revhub-serve = "binary_agent_server:main"
+revhub-mcp = "binary_agent_mcp_server:main"
+revhub-query = "tools.evidence_tools:main"
+
+# Flat layout: top-level scripts are modules, and the analysis code lives in
+# packages. Enumerated explicitly so the build is deterministic.
+[tool.setuptools]
+py-modules = [
+    "revhub_cli",
+    "binary_agent_server",
+    "binary_agent_mcp_server",
+    "host_config",
+]
+
+[tool.setuptools.packages.find]
+include = ["tools*", "exporters*", "util*"]

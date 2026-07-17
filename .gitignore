@@ -2,6 +2,9 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+build/
+dist/
+*.egg-info/
 chroma/
 ghidra_ai_chroma/
 ghidra_ai_exports/

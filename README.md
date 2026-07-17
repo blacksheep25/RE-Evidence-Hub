@@ -81,6 +81,50 @@ Invoke-RestMethod http://127.0.0.1:5006/lookup -Method Post -ContentType applica
 
 For a fuller walkthrough, read [Getting started](docs/getting-started.md).
 
+## Install as a CLI (`revhub`)
+
+The host tools also install as a single `revhub` command:
+
+```powershell
+python -m pip install -e .
+```
+
+That adds console commands backed by the same code (`revhub`, plus
+`revhub-doctor`, `revhub-serve`, `revhub-mcp`, `revhub-query`):
+
+| Command | Does |
+| --- | --- |
+| `revhub doctor` | Preflight: Python, baseline deps, headless prerequisites, and the active export. |
+| `revhub use <export>` | Remember an export as the default so you can drop `--export`. |
+| `revhub query <cmd>` | Query the active export (same as `tools/evidence_tools.py`). |
+| `revhub serve` / `revhub mcp` | Start the HTTP API / stdio MCP adapter. |
+| `revhub validate` | Validate the active export. |
+| `revhub index` / `classes` / `review-queue` | Build derived indexes for the active export. |
+
+**Current export pointer.** `revhub use <export>` saves a pointer so every
+command defaults to that export instead of repeating a long `--export` path:
+
+```powershell
+revhub use %USERPROFILE%\ghidra_ai_exports\sample_program.exe
+revhub query status            # no --export needed
+revhub query lookup 00401000
+revhub use --clear             # forget it
+```
+
+Resolution order is: an explicit `--export` > the `GHIDRA_AI_EXPORT_PATH`
+environment variable > the saved pointer > the built-in default. The pointer
+also applies to the positional-path tools (`revhub validate`, `revhub index`,
+…): they receive the active export when you do not pass one.
+
+**Preflight.** `revhub doctor` reports what is and is not ready — missing
+baseline dependencies as failures, headless prerequisites (JDK 21, Ghidra,
+PyGhidra) as warnings — and confirms the active export is valid:
+
+```powershell
+revhub doctor
+revhub doctor --json     # machine-readable
+```
+
 ## Main Workflows
 
 | Goal | Use |
