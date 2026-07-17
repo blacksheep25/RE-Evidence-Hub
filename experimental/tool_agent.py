@@ -7,12 +7,15 @@ import sys
 
 import requests
 
-try:
-    from tools.evidence_tools import EvidenceTools
-    from tools.investigation_memory import InvestigationMemory
-except ImportError:
-    from evidence_tools import EvidenceTools
-    from investigation_memory import InvestigationMemory
+import os
+
+# Resolve tools.* / experimental.* whether run as a script or imported.
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
+from tools.evidence_tools import EvidenceTools
+from tools.investigation_memory import InvestigationMemory
 
 
 class ToolAgent:

@@ -317,7 +317,7 @@ class InvestigationRunner:
 
         print(
 
-            "Next step: start tools/tool_agent.py"
+            "Next step: start experimental/tool_agent.py"
 
         )
 

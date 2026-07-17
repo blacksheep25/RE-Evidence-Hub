@@ -218,7 +218,7 @@ There are three ways AI can use the export:
 For an interactive local model:
 
 ```powershell
-python .\tools\tool_agent.py %USERPROFILE%\ghidra_ai_exports\sample_program.exe http://localhost:11434/api/chat llama3
+python .\experimental\tool_agent.py %USERPROFILE%\ghidra_ai_exports\sample_program.exe http://localhost:11434/api/chat llama3
 ```
 
 The model is expected to request tools, receive evidence, and then answer with

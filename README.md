@@ -190,7 +190,7 @@ AI should use this project as an evidence retriever, not as an oracle.
 | `tools/local_evidence.py` | Core read-only query engine for one export. |
 | `tools/evidence_tools.py` | In-process AI/script adapter and CLI over `LocalEvidenceStore`. |
 | `tools/evidence_client.py` | Small HTTP client for the running API. |
-| `tools/` | Validation, derived indexes, reports, annotations, and analysis helpers. |
+| `tools/` | The supported evidence surface: validation, derived indexes, reports, annotations, and the read-only query core. |
 | `experimental/` | Unsupported semantic/vector/LLM/agent helpers and older duplicates (leads only). See [experimental/README.md](experimental/README.md). |
 | `docs/` | Workflow, API, and architecture notes. |
 

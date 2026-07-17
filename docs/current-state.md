@@ -52,14 +52,15 @@ Nothing in the supported workflow imports it at import time; the only link is th
 optional semantic backend `tools/hybrid_search.py`, which imports
 `experimental.ai_tools.*` lazily.
 
-Some experimental analysis/agent modules **remain under `tools/`** because they
-share dependencies with the supported deterministic report tool
-`tools/start_investigation.py` through bare sibling imports; splitting them
-cleanly is a separate change. Treat these as experimental (leads only):
-`analyze_binary.py`, `tool_agent.py`, `local_agent.py`, `investigation_loop.py`,
+The analysis/agent cluster has now been moved to `experimental/` as well
+(`analyze_binary.py`, `tool_agent.py`, `local_agent.py`, `investigation_loop.py`,
 `context_engine.py`, `query_engine.py`, `analysis_agent.py`, `callgraph_agent.py`,
 `agent_controller.py`, `agent_executor.py`, `ai_answer.py`, `ai_planner.py`,
-`build_chunks.py`, and `vector_indexer.py`.
+`build_chunks.py`, and `vector_indexer.py`). These modules called into the
+supported report subsystem through bare sibling imports; the move rewrote those
+to package-qualified imports (`from tools.X` for the supported dependencies they
+use, `from experimental.X` for their experimental siblings), so `tools/` now
+holds only the supported surface.
 
 The supported host surface is: the evidence store (`tools/local_evidence.py`)
 and its adapters (`binary_agent_server.py`, `binary_agent_mcp_server.py`,
