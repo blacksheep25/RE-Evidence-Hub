@@ -39,9 +39,38 @@ against every string and import.
   analysis.
 - `ai_instructions.md` is a prompt/reference guide for analysing an exported
   binary; it is not consumed automatically by the scripts.
-- `function_ghidra_binary_analyst.py` only returns a prompt template for an
-  Open WebUI/Ollama-style function integration.  It does not read the export
-  folder or invoke a search service.
+- `experimental/function_ghidra_binary_analyst.py` only returns a prompt
+  template for an Open WebUI/Ollama-style function integration.  It does not read
+  the export folder or invoke a search service.
+
+## Supported surface vs experimental
+
+Unsupported host-side code lives under `experimental/` (semantic/vector search,
+embeddings, LLM/agent experiments, older duplicate implementations, and legacy
+ad-hoc test scripts). See [experimental/README.md](../experimental/README.md).
+Nothing in the supported workflow imports it at import time; the only link is the
+optional semantic backend `tools/hybrid_search.py`, which imports
+`experimental.ai_tools.*` lazily.
+
+Some experimental analysis/agent modules **remain under `tools/`** because they
+share dependencies with the supported deterministic report tool
+`tools/start_investigation.py` through bare sibling imports; splitting them
+cleanly is a separate change. Treat these as experimental (leads only):
+`analyze_binary.py`, `tool_agent.py`, `local_agent.py`, `investigation_loop.py`,
+`context_engine.py`, `query_engine.py`, `analysis_agent.py`, `callgraph_agent.py`,
+`agent_controller.py`, `agent_executor.py`, `ai_answer.py`, `ai_planner.py`,
+`build_chunks.py`, and `vector_indexer.py`.
+
+The supported host surface is: the evidence store (`tools/local_evidence.py`)
+and its adapters (`binary_agent_server.py`, `binary_agent_mcp_server.py`,
+`tools/evidence_tools.py`, `tools/evidence_client.py`, `tools/analysis_tools.py`);
+the validation, derived-index, and annotation tools (`tools/validate_export.py`,
+`tools/build_local_index.py`, `tools/build_class_registry.py`,
+`tools/build_name_review_queue.py`, `tools/function_annotations.py`); the
+deterministic report tool (`tools/start_investigation.py` with
+`tools/binary_triage.py`, `tools/startup_analyzer.py`,
+`tools/investigation_memory.py`, `tools/evidence_collector.py`, and
+`tools/report_generator.py`); and `tools/generate_evidence_pack.py`.
 
 ## Known integration gaps
 
@@ -51,8 +80,8 @@ pass.
 | Area | Observed behaviour | Consequence |
 | --- | --- | --- |
 | Post-processing | `post_process.py` rebuilds Markdown, `index.json`, and function summaries only. | It cannot create `ai_context.json`, which depends on a live `Program`. |
-| Chroma implementations | The normal host route now uses `host_config.py`, but the Docker-oriented `ai_tools/build_embeddings.py` still has separate `/data` settings. | The Docker helper must be deliberately aligned before it is used. |
-| Docker embedding helper | `ai_tools/build_embeddings.py` imports `USE_FUNCTION_RANKER` and `RANK_LIMIT` from the sibling `ai_tools/config.py`, which does not define them. | That helper will raise an import error when run from its own directory. |
+| Chroma implementations | The normal host route now uses `host_config.py`, but the Docker-oriented `experimental/ai_tools/build_embeddings.py` still has separate `/data` settings. | The Docker helper must be deliberately aligned before it is used. |
+| Docker embedding helper | `experimental/ai_tools/build_embeddings.py` imports `USE_FUNCTION_RANKER` and `RANK_LIMIT` from the sibling `experimental/ai_tools/config.py`, which does not define them. | That helper will raise an import error when run from its own directory. (Now clearly under `experimental/`.) |
 | LLM agents | `tool_agent.py` implements the interactive JSON tool loop over `EvidenceTools`, which uses the same `LocalEvidenceStore` core as the HTTP and MCP adapters. `local_agent.py` is only a compatibility entry point for the same agent. | Agent evidence, HTTP evidence, and MCP evidence now share accepted annotations and derived context. |
 | Packaging | `requirements.txt` lists host dependencies and the local evidence store has fixture tests, but there is no lock file. | Environments are not yet fully reproducible. |
 
