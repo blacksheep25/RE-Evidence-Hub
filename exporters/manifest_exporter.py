@@ -153,10 +153,10 @@ class ManifestExporter(object):
         )
 
 
-        info["domain_file"] = str(
+        info["source_path"] = str(
 
             self.program
-            .getDomainFile()
+            .getExecutablePath()
 
         )
 
@@ -177,7 +177,46 @@ class ManifestExporter(object):
         )
 
 
+        #
+        # Input-file hashes Ghidra computed at import. These tie an export to a
+        # specific binary (chain of custody) and are the input file's own
+        # digests, not hashes of the export.
+        #
+
+        md5 = self.program.getExecutableMD5()
+
+        if md5:
+
+            info["md5"] = str(md5)
+
+
+        sha256 = self.executable_sha256()
+
+        if sha256:
+
+            info["sha256"] = str(sha256)
+
+
         return info
+
+
+    def executable_sha256(self):
+
+        #
+        # getExecutableSHA256 exists in modern Ghidra; guard older builds so a
+        # missing getter degrades to "no sha256" rather than aborting.
+        #
+
+        try:
+
+            return (
+                self.program
+                .getExecutableSHA256()
+            )
+
+        except Exception:
+
+            return None
 
 
     # --------------------------------------------------------
@@ -231,9 +270,10 @@ class ManifestExporter(object):
 
         return {
 
-            "name":
+            "id":
                 str(
                     compiler
+                    .getCompilerSpecID()
                 )
 
         }
