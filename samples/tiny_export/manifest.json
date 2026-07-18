@@ -1,11 +1,21 @@
 {
+    "exporter": {
+        "name": "Ghidra AI Exporter",
+        "version": "1.1.0"
+    },
     "binary": {
         "name": "sample_program.exe",
+        "domain_file": "/synthetic/sample_program.exe",
+        "source_path": "synthetic://sample_program.exe",
         "image_base": "00400000"
     },
     "language": {
         "id": "x86:LE:32:default",
         "processor": "x86"
+    },
+    "compiler": {
+        "name": "synthetic",
+        "id": "default"
     },
     "functions": {
         "count": 2

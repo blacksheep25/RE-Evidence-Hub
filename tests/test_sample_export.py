@@ -5,6 +5,7 @@ Ghidra-free first run. This test proves it stays structurally valid and
 queryable through the same LocalEvidenceStore core as the HTTP/MCP adapters.
 """
 
+import json
 import os
 import unittest
 
@@ -19,6 +20,16 @@ SAMPLE = os.path.join(
 
 
 class SampleExportTests(unittest.TestCase):
+    def test_sample_manifest_documents_compatible_provenance_contract(self):
+        with open(os.path.join(SAMPLE, "manifest.json"), "r", encoding="utf-8") as handle:
+            manifest = json.load(handle)
+
+        self.assertEqual("1.1.0", manifest["exporter"]["version"])
+        self.assertIn("domain_file", manifest["binary"])
+        self.assertIn("source_path", manifest["binary"])
+        self.assertEqual("default", manifest["compiler"]["id"])
+        self.assertIn("name", manifest["compiler"])
+
     def test_sample_export_overlays_accepted_name(self):
         store = LocalEvidenceStore(SAMPLE)
         lookup = store.lookup("CPSTitle_ApplyLayout", include_decompiler=False)
