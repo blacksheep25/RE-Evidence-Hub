@@ -110,6 +110,11 @@ That adds console commands backed by the same code (`revhub`, plus
 | `revhub benchmark` | Measure supported store/search latency on the active export. |
 | `revhub post-process` | Rebuild AI context, summaries, Markdown, and the search index without reopening Ghidra. |
 
+For a first unattended local-model pass, follow the Windows-first
+[overnight quick start](docs/autonomous-agent.md). It covers model-server
+setup, a no-write dry run, explicit budgets, live logs, stop/resume behaviour,
+and separate morning review.
+
 **Current export pointer.** `revhub use <export>` saves a pointer so every
 command defaults to that export instead of repeating a long `--export` path:
 
