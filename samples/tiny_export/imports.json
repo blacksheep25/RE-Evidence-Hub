@@ -1,0 +1,8 @@
+[
+    {
+        "address": "EXTERNAL:1",
+        "name": "send",
+        "library": "WS2_32.DLL",
+        "references": [{"address": "00402000", "name": "FUN_00402000"}]
+    }
+]

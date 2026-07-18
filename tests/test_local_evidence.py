@@ -98,6 +98,18 @@ class LocalEvidenceStoreTests(unittest.TestCase):
         self.assertEqual("00401000", trace["functions_referencing_strings"][0]["address"])
         self.assertTrue(any(item["address"] == "00401000" for item in store.search("login_panel")["results"]))
 
+    def test_fts_body_search_matches_substrings(self):
+        temporary = self.make_export()
+        self.addCleanup(temporary.cleanup)
+        build(temporary.name)
+        store = LocalEvidenceStore(temporary.name)
+        # "panel" is an infix of the single token "login_panel" in the body; a
+        # whole-token index would miss it, the trigram index must find it.
+        results = store.search("panel")["results"]
+        hit = next((item for item in results if item["address"] == "00401000"), None)
+        self.assertIsNotNone(hit)
+        self.assertEqual("function-body", hit["match_source"])
+
     def test_unknown_function_is_an_error(self):
         temporary = self.make_export()
         self.addCleanup(temporary.cleanup)
@@ -198,6 +210,17 @@ class LocalEvidenceStoreTests(unittest.TestCase):
         payload = response.get_json()
         self.assertNotIn("decompiler", payload)
         self.assertIn("assembly", payload)
+
+
+class ImportabilityTests(unittest.TestCase):
+    def test_start_investigation_is_importable_as_a_module(self):
+        # Regression guard: the supported report tool must qualify its sibling
+        # imports (from tools.X import ...) so it can be imported as a module,
+        # not only run as `python tools/start_investigation.py`.
+        import importlib
+
+        module = importlib.import_module("tools.start_investigation")
+        self.assertTrue(hasattr(module, "InvestigationRunner"))
 
 
 if __name__ == "__main__":

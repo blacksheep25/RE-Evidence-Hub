@@ -350,13 +350,27 @@ class LocalEvidenceStore:
         tokens = re.findall(r"[A-Za-z0-9_]+", query)
         if not tokens:
             return []
-        expression = " OR ".join('"{}"'.format(token.replace('"', '')) for token in tokens)
+        # With the trigram index each quoted term is a case-insensitive SUBSTRING
+        # match, so "recv" finds "WSARecv". Terms shorter than 3 characters cannot
+        # form a trigram; fall back to a bounded LIKE scan so short queries still
+        # reach decompiled bodies.
+        long_tokens = [token for token in tokens if len(token) >= 3]
         connection = sqlite3.connect(self._local_index_path)
         try:
-            rows = connection.execute(
-                "SELECT address, bm25(function_fts) AS rank FROM function_fts WHERE function_fts MATCH ? ORDER BY rank LIMIT ?",
-                (expression, limit),
-            ).fetchall()
+            if long_tokens:
+                expression = " OR ".join('"{}"'.format(token.replace('"', '')) for token in long_tokens)
+                rows = connection.execute(
+                    "SELECT address, bm25(function_fts) AS rank FROM function_fts WHERE function_fts MATCH ? ORDER BY rank LIMIT ?",
+                    (expression, limit),
+                ).fetchall()
+            else:
+                escaped = tokens[0].replace("!", "!!").replace("%", "!%").replace("_", "!_")
+                rows = connection.execute(
+                    "SELECT address, 0.0 AS rank FROM function_fts WHERE body LIKE ? ESCAPE '!' LIMIT ?",
+                    ("%{}%".format(escaped), limit),
+                ).fetchall()
+        except sqlite3.OperationalError:
+            return []
         finally:
             # sqlite3's context manager commits/rolls back but does not close
             # the handle. Closing matters on Windows so a rebuilt derived

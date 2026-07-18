@@ -40,11 +40,14 @@ def build(export_path, output_path=None):
         connection.execute("PRAGMA journal_mode=OFF")
         connection.execute("PRAGMA synchronous=OFF")
         connection.execute("CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+        # The trigram tokenizer makes MATCH a case-insensitive SUBSTRING search
+        # (terms >= 3 chars), so a query like "recv" also finds "WSARecv" in a
+        # decompiled body. It needs SQLite >= 3.34 (shipped with modern Python).
         connection.execute(
             "CREATE VIRTUAL TABLE function_fts USING fts5("
-            "address UNINDEXED, raw_name, namespace, signature, body, tokenize='unicode61')"
+            "address UNINDEXED, raw_name, namespace, signature, body, tokenize='trigram')"
         )
-        connection.execute("INSERT INTO metadata(key, value) VALUES (?, ?)", ("schema_version", "1"))
+        connection.execute("INSERT INTO metadata(key, value) VALUES (?, ?)", ("schema_version", "2"))
         connection.execute("INSERT INTO metadata(key, value) VALUES (?, ?)", ("function_count", str(len(functions))))
 
         rows = []
@@ -73,7 +76,7 @@ def build(export_path, output_path=None):
 
     os.replace(temporary_path, output_path)
     elapsed = time.perf_counter() - started
-    print("Built {} in {:.1f}s ({} functions).".format(output_path, elapsed, len(functions)))
+    print("Built {} in {:.1f}s ({} functions, substring body search).".format(output_path, elapsed, len(functions)))
 
 
 def main(argv=None):
