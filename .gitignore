@@ -2,6 +2,9 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+build/
+dist/
+*.egg-info/
 chroma/
 ghidra_ai_chroma/
 ghidra_ai_exports/
@@ -13,4 +16,12 @@ re_results.json
 ai_context.json
 function_index.json
 name_review_queue.json
+class_registry.json
 *.log
+
+# Target artifacts must never be committed: the binaries being reverse-engineered
+# and any local scratch holding samples/copyrighted assets.
+*.exe
+*.dll
+*.bin
+RE Work/

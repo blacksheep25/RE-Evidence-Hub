@@ -26,7 +26,7 @@ from util.filesystem import FileSystem
 class ManifestExporter(object):
 
 
-    VERSION = "1.0.0"
+    VERSION = "1.1.0"
 
 
 
@@ -153,6 +153,16 @@ class ManifestExporter(object):
         )
 
 
+        # Keep the project-domain identity for consumers of manifest 1.0 while
+        # also recording the original input path used for provenance.
+        info["domain_file"] = str(
+
+            self.program
+            .getDomainFile()
+
+        )
+
+
         info["source_path"] = str(
 
             self.program
@@ -269,6 +279,14 @@ class ManifestExporter(object):
 
 
         return {
+
+            # ``name`` is retained for manifest 1.0 consumers. It may contain
+            # Ghidra's Java representation; new consumers should use ``id``.
+            "name":
+                str(
+                    compiler
+                ),
+
 
             "id":
                 str(

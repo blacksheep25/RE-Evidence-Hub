@@ -1,0 +1,18 @@
+{
+    "address": "00401000",
+    "name": "FUN_00401000",
+    "namespace": "",
+    "signature": "void FUN_00401000(void)",
+    "hash": "a",
+    "range": {},
+    "size": 12,
+    "instruction_count": 3,
+    "parameters": [],
+    "locals": [],
+    "assembly": "CALL 00402000",
+    "decompiler": {"success": true, "c_code": "load login_panel.asset;"},
+    "calls": [{"address": "00402000", "name": "FUN_00402000"}],
+    "called_by": [],
+    "comments": [],
+    "xrefs": []
+}
