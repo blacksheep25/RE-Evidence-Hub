@@ -51,3 +51,30 @@ binary_review_candidate: you propose, you do not review. Stop when exhausted.
 ```
 
 Run `revhub review-queue` first to prioritise high-signal functions.
+
+## Built-in local-model runner
+
+An MCP orchestrator is optional. The supported runner calls an OpenAI-compatible
+local endpoint directly while retaining the same guard and candidate store:
+
+```powershell
+revhub overnight `
+  --model qwen3-coder:30b `
+  --run-id local-night-01 `
+  --max-targets 500 `
+  --max-minutes 480 `
+  --max-tokens 1200
+```
+
+Ollama's native endpoint is also supported:
+
+```powershell
+revhub overnight --provider ollama `
+  --endpoint http://127.0.0.1:11434/api/chat `
+  --model qwen3-coder:30b --run-id local-night-01
+```
+
+Use `--dry-run` to request one decision without writing anything. The runner
+limits decompiler context, retries transient HTTP failures, stops on its target
+or time budget, and appends `runner.jsonl` inside the run directory. Reusing the
+run id resumes its ledger; proposals still require separate review.

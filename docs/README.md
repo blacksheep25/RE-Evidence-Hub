@@ -9,4 +9,6 @@
 - [AI agent guide](ai-agent-guide.md)
 - [Overnight naming](autonomous-agent.md)
 - [Networking reconstruction](network-reconstruction.md)
+- [Optional semantic search](semantic-search.md)
+- [Mutable artifact schemas](artifact-schemas.md)
 - [Project audit and roadmap](project-audit-and-roadmap.md)

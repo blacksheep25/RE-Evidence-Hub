@@ -103,6 +103,12 @@ That adds console commands backed by the same code (`revhub`, plus
 | `revhub validate` | Validate the active export. |
 | `revhub index` / `classes` / `review-queue` | Build derived indexes for the active export. |
 | `revhub network` | Build the static networking reconstruction evidence pack. |
+| `revhub network-capture <file>` | Import authorised runtime frames from JSON/JSONL/CSV. |
+| `revhub protocol-contract` | Create or validate a reviewed reconstruction contract. |
+| `revhub overnight --model <model>` | Run a bounded/resumable local-model naming pass. |
+| `revhub semantic-index` | Build the optional portable per-export semantic index. |
+| `revhub benchmark` | Measure supported store/search latency on the active export. |
+| `revhub post-process` | Rebuild AI context, summaries, Markdown, and the search index without reopening Ghidra. |
 
 **Current export pointer.** `revhub use <export>` saves a pointer so every
 command defaults to that export instead of repeating a long `--export` path:
@@ -147,6 +153,8 @@ revhub doctor --json     # machine-readable
 | Generate broad deterministic reports | `tools/start_investigation.py <export>` |
 | Map networking lifecycle and reconstruction gaps | `revhub network` |
 | Stage disposable overnight naming candidates | `revhub mcp --run-id <run-id>` |
+| Run the local model without a separate MCP orchestrator | `revhub overnight --model <model> --run-id <run-id>` |
+| Import runtime frames and create a reviewed protocol contract | `revhub network-capture <file>` then `revhub protocol-contract` |
 
 ## Important Concepts
 
@@ -248,6 +256,9 @@ AI should use this project as an evidence retriever, not as an oracle.
 | `project_exports/` | Ignored, repo-local per-project workspaces (configurable with `RE_EVIDENCE_PROJECTS_ROOT`). |
 | `tools/network_reconstruction.py` | Deterministic static networking evidence pack and gap checklist. |
 | `tools/naming_candidates.py` | Isolated model proposals and explicit review/promotion. |
+| `tools/autonomous_naming_runner.py` | Budgeted OpenAI-compatible/Ollama local-model runner. |
+| `tools/network_capture.py`, `tools/protocol_contract.py` | Runtime observations and reviewed recreation contracts. |
+| `tools/semantic_index.py` | The single optional portable semantic backend. |
 | `tools/evidence_tools.py` | In-process AI/script adapter and CLI over `LocalEvidenceStore`. |
 | `tools/evidence_client.py` | Small HTTP client for the running API. |
 | `tools/` | The supported evidence surface: validation, derived indexes, reports, annotations, and the read-only query core. |
@@ -278,6 +289,8 @@ python -m unittest discover -s tests
 - [Getting started](docs/getting-started.md): first export through first query.
 - [Projects and exports](docs/projects-and-exports.md): layout, selection, backup, and relocation.
 - [Networking reconstruction](docs/network-reconstruction.md): static evidence pack and recreation workflow.
+- [Optional semantic search](docs/semantic-search.md): the single portable vector backend.
+- [Artifact schemas](docs/artifact-schemas.md): locking, audit, backup, and migrations.
 - [AI agent guide](docs/ai-agent-guide.md): evidence rules and bounded tool usage.
 - [Overnight naming](docs/autonomous-agent.md): isolated local-model pass and later review.
 - [Architecture](docs/architecture.md): runtime boundaries and data contracts.

@@ -105,6 +105,12 @@ def build_report(export_path: str, limit: int = 500) -> Dict[str, Any]:
         ) if not observed
     ]
     binary = store.status()["binary"]
+    capture_path = os.path.join(store.export_path, "derived", "network", "runtime_capture.json")
+    runtime_capture = None
+    if os.path.isfile(capture_path):
+        capture = _load(capture_path, {})
+        if isinstance(capture, dict) and capture.get("kind") == "network-runtime-observations":
+            runtime_capture = {"path": capture_path, "summary": capture.get("summary", {})}
     return {
         "schema_version": 1,
         "kind": "network-reconstruction-evidence-pack",
@@ -118,6 +124,7 @@ def build_report(export_path: str, limit: int = 500) -> Dict[str, Any]:
         "endpoint_leads": endpoint_leads[:limit],
         "protocol_string_leads": protocol_leads[:limit],
         "unresolved_contracts": unresolved,
+        "runtime_capture": runtime_capture,
         "recommended_next_steps": [
             "Verify each stage by following callers/callees and decompiled control flow.",
             "Capture runtime traffic only when authorised, then correlate frames with static send/receive paths.",
@@ -136,6 +143,8 @@ def render_markdown(report: Dict[str, Any]) -> str:
     lines += ["", "## Unresolved contracts", ""]
     lines += ["- " + item for item in report["unresolved_contracts"]] or ["- None from this static checklist; runtime verification is still required."]
     lines += ["", "## Next steps", ""] + ["{}. {}".format(index, item) for index, item in enumerate(report["recommended_next_steps"], 1)]
+    if report.get("runtime_capture"):
+        lines += ["", "## Runtime observations", "", "Imported frames: {}".format(report["runtime_capture"]["summary"].get("frame_count", 0))]
     return "\n".join(lines) + "\n"
 
 

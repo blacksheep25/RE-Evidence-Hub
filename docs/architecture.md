@@ -19,7 +19,7 @@ The project has two runtime boundaries.
    packages or a running local LLM service.
 
 Do not cross these boundaries casually: the exporter imports Ghidra Java APIs,
-while host search and agent code imports packages such as Chroma, NumPy,
+while host search and agent code imports packages such as NumPy,
 `sentence-transformers`, Flask, and Requests.
 
 ### Project workspace boundary
@@ -112,8 +112,10 @@ can create further files in the same export folder:
 | `tools/build_class_registry.py` | `class_registry.json` (derived class/RTTI/vtable review registry; vtable ownership only from explicit accepted evidence) |
 | `tools/build_name_review_queue.py` | `name_review_queue.json` (derived, non-promoting direct import/resource naming candidates) |
 | `exporters/embedding_exporter.py` / `experimental/build_chunks.py` | `ai_chunks.json` |
-| `experimental/vector_indexer.py` | `vectors/embeddings.npy`, `vectors/metadata.json` |
-| `experimental/build_embeddings_host.py` | A separate Chroma collection called `ghidra` |
+| `tools/semantic_index.py` | `derived/semantic/metadata.json`, `derived/semantic/vectors.npz` |
+| Legacy experimental vector scripts | Deprecated compatibility/reference paths. |
+| `tools/network_capture.py` | `derived/network/runtime_capture.json` |
+| `tools/protocol_contract.py` | `derived/network/protocol_contract.json` |
 
 ## Host entry points
 
@@ -124,11 +126,13 @@ can create further files in the same export folder:
 | `python tools/validate_export.py <export> --full` | Verifies required files, index identity, function count, and all function records. | Core export. |
 | `python experimental/build_chunks.py <export>` | Creates `ai_chunks.json` from raw function JSON without rerunning Ghidra. | Core export. |
 | `python experimental/query_engine.py <export> <query>` | Searches `ai_chunks.json` by lexical scoring. | `ai_chunks.json`. |
-| `python experimental/vector_indexer.py <export>` | Builds local NumPy vectors with `all-MiniLM-L6-v2`. | `ai_chunks.json`, NumPy, sentence-transformers. |
-| `python experimental/vector_query.py <export> <query>` | Searches local NumPy vectors. | `vectors/` output from the indexer. |
-| `python experimental/build_embeddings_host.py` | Rebuilds the configured Chroma collection using BGE embeddings. | Edit hard-coded paths; Chroma and sentence-transformers. |
+| `revhub semantic-index` | Builds the supported portable semantic index. | Core export and semantic extra. |
+| `revhub post-process` | Rebuilds AI context, summaries, Markdown, and `index.json` from exported files. | Core export. |
+| `revhub overnight --model <model>` | Runs a bounded local naming pass into isolated candidates. | Core export, Requests, local endpoint. |
+| `revhub network-capture <file>` | Normalises authorised runtime frames. | Core export and JSON/JSONL/CSV input. |
+| `revhub protocol-contract` | Creates/validates a reviewed recreation contract. | Core export; runtime observations optional. |
 | `python binary_agent_server.py --export <export>` | Starts the local evidence JSON API on `127.0.0.1:5006`. | Core export and Flask; semantic routes load optional dependencies only when called. |
-| `python binary_agent_mcp_server.py --export <export>` | Starts the read-only stdio MCP adapter. | Core export only. |
+| `python binary_agent_mcp_server.py --export <export>` | Starts the stdio MCP evidence, isolated-proposal, and review adapter. | Core export only. |
 | `python tools/build_local_index.py <export>` | Builds the optional fast local FTS5 body-search index. | Core export. |
 | `python tools/generate_evidence_pack.py <title> ...` | Creates a bounded, reviewable evidence pack. | Core export; accepted annotations recommended. |
 | `python tools/build_class_registry.py <export>` | Builds a conservative class/vtable registry from globals and accepted annotations. | Core export, `globals.json`, annotations optional. |
@@ -151,6 +155,15 @@ The Flask service exposes `GET /health`, `GET /status`, `GET /routes`, and
 `/review`, `/reload`, `/semantic`, `/hybrid`, and `/ask`. Core routes return
 raw evidence plus accepted reversible annotations. Semantic routes are optional
 leads and are not required to start the service.
+
+## Mutable-artifact transactions
+
+Accepted annotations, agent ledgers/candidates, runtime captures, and protocol
+contracts are derived state. Writers take an advisory `<artifact>.lock` around
+the complete read-modify-write transaction, increment revision metadata where
+supported, flush temporary files, and atomically replace the target.
+`revhub migrate-artifacts` audits schemas and applies only recognisable legacy
+migrations after writing a backup.
 
 ## Safe extension points
 

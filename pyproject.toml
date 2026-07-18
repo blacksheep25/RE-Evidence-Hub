@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "re-evidence-hub"
-version = "0.1.0"
+version = "0.2.0"
 description = "RE-Evidence-Hub — portable binary evidence, local query APIs, networking reconstruction, and reviewed AI workflows."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -18,8 +18,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Experimental semantic/vector search (pulls in PyTorch). Leads only.
-semantic = ["chromadb", "sentence-transformers"]
+# Supported portable semantic index (pulls in PyTorch). Results remain leads.
+semantic = ["sentence-transformers==5.6.0"]
 # Headless export via PyGhidra (also needs a local Ghidra install + JDK 21).
 headless = ["pyghidra"]
 

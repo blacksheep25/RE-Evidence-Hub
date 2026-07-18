@@ -13,6 +13,11 @@ HTTP/MCP, derived tools, tests, packaging, docs, and experimental isolation.
   stale-function protection and per-run progress.
 - Fixed eager experimental vector imports in `tools/hybrid_search.py`.
 - Corrected stale fixture/path/overnight guidance and expanded user/agent docs.
+- Added the supported budgeted local-model runner, runtime capture import,
+  reviewed protocol contracts, cross-process locks/revisions, schema migration
+  safeguards, performance benchmarking, and one portable semantic backend.
+- Completed a real PyGhidra export and full validation of 104 functions into
+  the repo-local ignored workspace.
 
 ## Findings
 
@@ -21,23 +26,27 @@ HTTP/MCP, derived tools, tests, packaging, docs, and experimental isolation.
 | Raw export | Portable address-keyed JSON is a sound durable boundary. | Keep stable; validate fully. |
 | Query core | CLI, HTTP, MCP, and agents share `LocalEvidenceStore`. | Good; keep adapters thin. |
 | Search | Metadata is linear; optional trigram FTS handles bodies. | Appropriate; benchmark huge targets. |
-| Writes | Replace-based annotation/run writes are crash-resistant. | Concurrent-writer locking is backlog. |
-| Networking | Packet tracing existed, but no lifecycle/recreation artifact. | Static pack implemented. |
+| Writes | Mutable artifacts use advisory locks, revisions, and atomic replacement. | Implemented and cross-process tested. |
+| Networking | Static maps, runtime observations, and reviewed protocol contracts are distinct artifacts. | Generic workflow implemented. |
 | Naming | Guarded direct promotion was too weak for overnight trust. | Proposal/review stages implemented. |
 | Optional stack | Hybrid helper eagerly imported experimental packages. | Fixed with lazy imports. |
 | Packaging/docs | Shared layout was absent and fixture docs were stale. | Fixed. |
 
-## Prioritised backlog
+## Remaining target-specific work
 
-1. Add advisory locks or compare-and-swap revisions for concurrent writers.
-2. Add an optional runtime-capture import schema for authorised correlation.
-3. Add reviewed protocol-contract artifacts and recreation fixture tests.
-4. Benchmark metadata search on several 100k-function exports before adding DB complexity.
-5. Choose one semantic backend, pin it, and retire duplicates.
-6. Repair/remove experimental `build_embeddings.py` config mismatch.
-7. Add real local-model transcript fixtures for malformed calls, compaction,
-   retries, and reviewer disagreement.
-8. Add schema migration tools before changing raw/overlay formats.
+The generic repository-level backlog is implemented: locking/revisions,
+runtime-capture schema, reviewed protocol contracts, repeatable benchmarking,
+one pinned portable semantic backend, compatibility wrappers for old embedding
+builders, a supported budgeted local runner, and schema audit/migration tooling.
+
+Remaining work depends on real targets and real local-model sessions:
+
+1. Create reviewed protocol messages and encode/decode test vectors as evidence
+   confirms them for each target.
+2. Record benchmark baselines on several real 100k-function exports.
+3. Add provider-specific transcript fixtures for edge cases encountered during
+   real overnight runs.
+4. Add future schema migrations only when a schema actually changes.
 
 ## Validation standard
 

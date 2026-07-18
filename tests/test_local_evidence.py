@@ -197,6 +197,13 @@ class LocalEvidenceStoreTests(unittest.TestCase):
         self.assertEqual(200, routes.status_code)
         self.assertTrue(any(item["route"] == "/lookup" for item in routes.get_json()["routes"]))
 
+    def test_status_reports_optional_artifact_availability(self):
+        temporary = self.make_export()
+        self.addCleanup(temporary.cleanup)
+        status = LocalEvidenceStore(temporary.name).status()
+        self.assertFalse(status["semantic_search"]["available"])
+        self.assertFalse(status["runtime_capture"]["available"])
+
     def test_http_lookup_honours_string_boolean_values(self):
         temporary = self.make_export()
         self.addCleanup(temporary.cleanup)

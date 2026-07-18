@@ -38,3 +38,36 @@ the derived files. Use a bounded `limit` and investigate one stage at a time.
 
 Keep transport, framing, serialization, crypto/compression, dispatch, and
 session state separate so uncertainty in one layer does not contaminate others.
+
+## Runtime observations
+
+Import only traffic you are authorised to inspect:
+
+```powershell
+revhub network-capture .\capture.jsonl --source 'login session 18-07-2026'
+revhub network
+```
+
+JSON, newline-delimited JSON, and CSV are accepted. Each frame may contain
+timestamp, direction, transport, stream id, local/remote address and port,
+payload hex, declared length, and a note. Direction aliases (`rx`, `tx`, `in`,
+`out`) are normalised. Invalid hex, ports, and payload-length mismatches fail
+the import instead of being silently repaired.
+
+The normalised data is written to
+`derived/network/runtime_capture.json`. It is runtime evidence, not a decoded
+protocol claim.
+
+## Reviewed protocol contract
+
+```powershell
+revhub protocol-contract
+# edit the generated JSON using verified evidence
+revhub protocol-contract --validate
+```
+
+The contract separates transport, framing, serialization, encryption,
+compression, dispatch, and session state. New sections start as `unknown`.
+A `confirmed` section is invalid unless it has a statement, evidence refs,
+confidence, reviewer, and review timestamp. Message contracts and test vectors
+live in the same artifact for recreation encode/decode tests.

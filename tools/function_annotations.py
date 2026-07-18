@@ -20,6 +20,8 @@ import os
 import sys
 import tempfile
 
+from tools.file_lock import locked_file
+
 
 SCHEMA_VERSION = 1
 ANNOTATIONS_DIR = "annotations"
@@ -88,6 +90,7 @@ def new_overlay(manifest):
         "schema_version": SCHEMA_VERSION,
         "kind": "ghidra-function-name-overlay",
         "created_utc": utc_now(),
+        "revision": 0,
         "target": target_identity(manifest),
         "conventions": {
             "identifier_style": "PascalCase",
@@ -177,11 +180,12 @@ def render_markdown(export_path, overlay):
 def command_init(args):
     export_path, manifest, _ = load_export(args.export_path)
     _, overlay_path, _ = annotation_paths(export_path)
-    if os.path.exists(overlay_path) and not args.force:
-        raise ValueError("Overlay already exists: {} (use --force only to replace it)".format(overlay_path))
-    overlay = new_overlay(manifest)
-    save_overlay(export_path, overlay)
-    render_markdown(export_path, overlay)
+    with locked_file(overlay_path):
+        if os.path.exists(overlay_path) and not args.force:
+            raise ValueError("Overlay already exists: {} (use --force only to replace it)".format(overlay_path))
+        overlay = new_overlay(manifest)
+        save_overlay(export_path, overlay)
+        render_markdown(export_path, overlay)
     print("Created {}".format(overlay_path))
 
 
@@ -200,28 +204,31 @@ def annotate(export_path, address, name, confidence, status="accepted",
         raise ValueError("Invalid status: {}".format(status))
 
     export_path, manifest, index = load_export(export_path)
-    overlay = load_overlay(export_path, manifest, create=create)
-    address, function = load_function(export_path, index, address)
-    entries = overlay.setdefault("entries", {})
-    entry = entries.setdefault(address, {"decisions": []})
+    _, overlay_path, _ = annotation_paths(export_path)
+    with locked_file(overlay_path):
+        overlay = load_overlay(export_path, manifest, create=create)
+        address, function = load_function(export_path, index, address)
+        entries = overlay.setdefault("entries", {})
+        entry = entries.setdefault(address, {"decisions": []})
 
-    decision = {
-        "name": name,
-        "status": status,
-        "confidence": confidence,
-        "source": source,
-        "created_utc": utc_now(),
-        "function_identity": function_identity(function),
-        "evidence": list(evidence or []),
-        "rationale": rationale or "",
-    }
-    entry.setdefault("decisions", []).append(decision)
-    if status == "accepted":
-        entry["active_name"] = name
+        decision = {
+            "name": name,
+            "status": status,
+            "confidence": confidence,
+            "source": source,
+            "created_utc": utc_now(),
+            "function_identity": function_identity(function),
+            "evidence": list(evidence or []),
+            "rationale": rationale or "",
+        }
+        entry.setdefault("decisions", []).append(decision)
+        if status == "accepted":
+            entry["active_name"] = name
 
-    overlay["updated_utc"] = utc_now()
-    save_overlay(export_path, overlay)
-    render_markdown(export_path, overlay)
+        overlay["revision"] = int(overlay.get("revision", 0)) + 1
+        overlay["updated_utc"] = utc_now()
+        save_overlay(export_path, overlay)
+        render_markdown(export_path, overlay)
     return {
         "address": address,
         "name": name,

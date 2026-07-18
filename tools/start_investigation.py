@@ -323,7 +323,7 @@ class InvestigationRunner:
 
         print(
 
-            "Next step: start experimental/tool_agent.py"
+            "Next step: use `revhub query` for review or `revhub overnight --model <local-model>` for an isolated naming pass"
 
         )
 

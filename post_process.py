@@ -1,16 +1,12 @@
-import os
+import argparse
 
 from exporters.ai_summary_exporter import AISummaryExporter
+from exporters.ai_context_exporter import AIContextExporter
 from exporters.search_index_exporter import SearchIndexExporter
 from exporters.function_summary_exporter import FunctionSummaryExporter
 
-
-import sys
-
-EXPORT_PATH = sys.argv[1]
-
-
-def run():
+def run(export_path):
+    failures = []
 
     print("==============================")
     print(" Ghidra AI Post Processor")
@@ -18,6 +14,11 @@ def run():
 
 
     jobs = [
+
+        (
+            "AI context",
+            AIContextExporter
+        ),
 
         (
             "AI summaries",
@@ -47,7 +48,7 @@ def run():
             instance = exporter(
                 program=None,
                 monitor=None,
-                output=EXPORT_PATH,
+                output=export_path,
                 config=None
             )
 
@@ -59,9 +60,26 @@ def run():
 
             print("[!] Failed")
             print(e)
+            failures.append((name, str(e)))
 
+    if failures:
+        raise RuntimeError(
+            "Post-processing failed: {}".format(
+                "; ".join("{}: {}".format(name, error) for name, error in failures)
+            )
+        )
+
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(
+        description="Rebuild host-derived context, summaries, and the search index."
+    )
+    parser.add_argument("export_path", help="Path to a completed Ghidra export")
+    args = parser.parse_args(argv)
+    run(args.export_path)
+    return 0
 
 
 if __name__ == "__main__":
-
-    run()
+    raise SystemExit(main())

@@ -13,6 +13,7 @@ This file tells an AI model:
 
 import os
 import datetime
+import json
 
 
 from util.jsonwriter import JSONWriter
@@ -47,6 +48,8 @@ class AIContextExporter(object):
 
     def export(self):
 
+        binary_name, architecture = self._binary_metadata()
+
 
         context = {
 
@@ -77,13 +80,10 @@ class AIContextExporter(object):
             {
 
                 "name":
-                    self.program.getName(),
+                    binary_name,
 
                 "architecture":
-                    str(
-                        self.program
-                        .getLanguage()
-                    )
+                    architecture
 
             },
 
@@ -191,3 +191,29 @@ class AIContextExporter(object):
         print(
             "[+] AI context written"
         )
+
+
+    def _binary_metadata(self):
+        """Read binary metadata from Ghidra or a completed export manifest."""
+
+        if self.program is not None:
+            return (
+                self.program.getName(),
+                str(self.program.getLanguage())
+            )
+
+        manifest_path = os.path.join(self.output, "manifest.json")
+        with open(manifest_path, "r", encoding="utf-8") as handle:
+            manifest = json.load(handle)
+
+        binary = manifest.get("binary", {})
+        language = manifest.get("language", {})
+        binary_name = binary.get("name")
+        architecture = language.get("id") or language.get("processor")
+
+        if not binary_name or not architecture:
+            raise ValueError(
+                "manifest.json must contain binary.name and language.id or language.processor"
+            )
+
+        return binary_name, str(architecture)

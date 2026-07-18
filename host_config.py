@@ -106,6 +106,8 @@ DEFAULT_EXPORT_PATH = resolve_export_path()
 DEFAULT_RESOURCE_ROOT = os.environ.get("GHIDRA_AI_RESOURCE_ROOT", "")
 
 
+# Legacy settings retained only so old experimental modules fail gracefully;
+# supported semantic search stores vectors inside each export.
 DEFAULT_CHROMA_PATH = os.environ.get(
     "GHIDRA_AI_CHROMA_PATH",
     os.path.expanduser(
@@ -121,8 +123,8 @@ CHROMA_COLLECTION = os.environ.get(
 
 
 EMBEDDING_MODEL = os.environ.get(
-    "GHIDRA_AI_EMBEDDING_MODEL",
-    "BAAI/bge-base-en-v1.5"
+    "RE_EVIDENCE_EMBEDDING_MODEL",
+    os.environ.get("GHIDRA_AI_EMBEDDING_MODEL", "BAAI/bge-base-en-v1.5")
 )
 
 

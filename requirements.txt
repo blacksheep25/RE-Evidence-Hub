@@ -1,8 +1,7 @@
 # Host-side analysis tools. The Ghidra Script Manager exporter uses Ghidra's
 # own Python/Java environment and does not install these packages.
 #
-# This file installs BOTH the supported baseline and the optional experimental
-# stack, for backward compatibility. Most users want the smaller install:
+# This file installs the supported baseline plus the optional semantic stack.
 #
 #   Supported baseline (recommended)  ->  requirements-core.txt
 #     flask, requests, numpy  (everything the evidence workflow needs)
@@ -10,7 +9,7 @@
 #   Reproducible baseline (exact pins)  ->  requirements.lock
 #
 #   Optional semantic/vector path (heavy; pulls in PyTorch)  ->  requirements-optional.txt
-#     chromadb, sentence-transformers  (experimental; leads only)
+#     sentence-transformers  (portable per-export vector leads)
 #
 # See docs/getting-started.md and docs/current-state.md for details.
 
