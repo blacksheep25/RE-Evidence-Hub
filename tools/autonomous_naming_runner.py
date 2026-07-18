@@ -53,6 +53,10 @@ def _json_object(text: str) -> Dict[str, Any]:
     return parsed
 
 
+class ModelResponseError(RuntimeError):
+    """The provider replied, but the model output did not match the contract."""
+
+
 class LocalModelClient:
     def __init__(self, endpoint: str, model: str, provider: str = "openai",
                  api_key: str = "", timeout: int = 300, temperature: float = 0.0,
@@ -88,21 +92,31 @@ class LocalModelClient:
                 "max_tokens": self.max_tokens,
             }
         last_error: Optional[Exception] = None
+        last_error_kind = "provider"
         for attempt in range(self.retries + 1):
             try:
                 response = requests.post(self.endpoint, json=payload, headers=headers, timeout=self.timeout)
                 response.raise_for_status()
-                body = response.json()
-                if self.provider == "ollama":
-                    content = body.get("message", {}).get("content", "")
-                else:
-                    content = body.get("choices", [{}])[0].get("message", {}).get("content", "")
-                return _json_object(content)
-            except (requests.RequestException, ValueError, KeyError, IndexError) as exc:
+            except requests.RequestException as exc:
                 last_error = exc
-                if attempt < self.retries:
-                    time.sleep(min(2 ** attempt, 5))
-        raise RuntimeError("Local model request failed: {}".format(last_error))
+                last_error_kind = "provider"
+            else:
+                try:
+                    body = response.json()
+                    if self.provider == "ollama":
+                        content = body.get("message", {}).get("content", "")
+                    else:
+                        content = body.get("choices", [{}])[0].get("message", {}).get("content", "")
+                    return _json_object(content)
+                except (ValueError, KeyError, IndexError, AttributeError) as exc:
+                    last_error = exc
+                    last_error_kind = "response"
+            if attempt < self.retries:
+                time.sleep(min(2 ** attempt, 5))
+        message = "Local model request failed: {}".format(last_error)
+        if last_error_kind == "response":
+            raise ModelResponseError(message)
+        raise RuntimeError(message)
 
 
 def _bounded_lookup(store: LocalEvidenceStore, address: str, context_chars: int) -> Dict[str, Any]:
@@ -132,7 +146,7 @@ def run_overnight(store: LocalEvidenceStore, client: Any, run_id: str,
                   context_chars: int = 12000, dry_run: bool = False) -> Dict[str, Any]:
     store.agent_run_id = run_id
     started = time.monotonic()
-    processed = proposed = skipped = deferred = errors = 0
+    processed = proposed = skipped = deferred = errors = invalid_decisions = fatal_errors = 0
     exhausted = False
     while processed < max(1, max_targets) and (time.monotonic() - started) < max_minutes * 60:
         target = ledger.next_target(store, store.export_path, run_id=run_id)
@@ -140,8 +154,30 @@ def run_overnight(store: LocalEvidenceStore, client: Any, run_id: str,
             exhausted = True
             break
         lookup = _bounded_lookup(store, target["address"], context_chars)
+        decision = None
         try:
             decision = client.decide(lookup)
+        except (ModelResponseError, ValueError, AttributeError) as exc:
+            reason = str(exc)
+            recorded = ledger.record(store.export_path, target["address"], "deferred", reason, run_id)
+            processed += 1
+            deferred += 1
+            errors += 1
+            invalid_decisions += 1
+            _append_log(store.export_path, run_id, {
+                "event": "invalid-decision", "address": target["address"],
+                "error": reason, "decision": decision, "result": recorded,
+            })
+            continue
+        except (RuntimeError, OSError) as exc:
+            errors += 1
+            fatal_errors += 1
+            _append_log(store.export_path, run_id, {
+                "event": "provider-error", "address": target["address"], "error": str(exc),
+            })
+            break
+
+        try:
             action = str(decision.get("action", "")).strip().lower()
             if dry_run:
                 return {"dry_run": True, "target": target, "decision": decision, "writes": 0}
@@ -168,9 +204,20 @@ def run_overnight(store: LocalEvidenceStore, client: Any, run_id: str,
                 raise ValueError("Model action must be propose, skip, or defer")
             processed += 1
             _append_log(store.export_path, run_id, {"event": "decision", "address": target["address"], "decision": decision, "result": payload})
-        except (RuntimeError, ValueError, OSError) as exc:
+        except ValueError as exc:
+            recorded = ledger.record(store.export_path, target["address"], "deferred", str(exc), run_id)
+            processed += 1
+            deferred += 1
             errors += 1
-            _append_log(store.export_path, run_id, {"event": "error", "address": target["address"], "error": str(exc)})
+            invalid_decisions += 1
+            _append_log(store.export_path, run_id, {
+                "event": "invalid-decision", "address": target["address"],
+                "error": str(exc), "decision": decision, "result": recorded,
+            })
+        except (RuntimeError, OSError) as exc:
+            errors += 1
+            fatal_errors += 1
+            _append_log(store.export_path, run_id, {"event": "provider-error", "address": target["address"], "error": str(exc)})
             break
     return {
         "run_id": run_id,
@@ -179,6 +226,8 @@ def run_overnight(store: LocalEvidenceStore, client: Any, run_id: str,
         "skipped": skipped,
         "deferred": deferred,
         "errors": errors,
+        "invalid_decisions": invalid_decisions,
+        "fatal_errors": fatal_errors,
         "exhausted": exhausted,
         "elapsed_seconds": round(time.monotonic() - started, 3),
         "progress": ledger.summary(store, store.export_path, run_id),
@@ -205,7 +254,7 @@ def main(argv=None):
     client = LocalModelClient(args.endpoint, args.model, args.provider, args.api_key, args.timeout, args.temperature, args.retries, args.max_tokens)
     result = run_overnight(LocalEvidenceStore(args.export_path), client, args.run_id, args.max_targets, args.max_minutes, args.context_chars, args.dry_run)
     print(json.dumps(result, indent=2, ensure_ascii=False))
-    return 1 if result.get("errors") else 0
+    return 1 if result.get("fatal_errors") else 0
 
 
 if __name__ == "__main__":
