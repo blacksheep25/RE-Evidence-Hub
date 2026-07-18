@@ -18,6 +18,7 @@ import hashlib
 import json
 import os
 import sys
+import tempfile
 
 
 SCHEMA_VERSION = 1
@@ -34,9 +35,21 @@ def load_json(path):
 
 
 def write_json(path, value):
-    with open(path, "w", encoding="utf-8", newline="\n") as handle:
+    directory = os.path.dirname(path) or "."
+    handle = tempfile.NamedTemporaryFile(
+        "w", encoding="utf-8", newline="\n", dir=directory,
+        prefix=".annotations-", suffix=".tmp", delete=False,
+    )
+    try:
         json.dump(value, handle, indent=2, sort_keys=True)
         handle.write("\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+        handle.close()
+        os.replace(handle.name, path)
+    finally:
+        if os.path.exists(handle.name):
+            os.remove(handle.name)
 
 
 def utc_now():
@@ -172,36 +185,62 @@ def command_init(args):
     print("Created {}".format(overlay_path))
 
 
-def command_set(args):
-    if args.confidence not in CONFIDENCE_LEVELS:
-        raise ValueError("Invalid confidence: {}".format(args.confidence))
-    if args.status not in STATUS_LEVELS:
-        raise ValueError("Invalid status: {}".format(args.status))
+def annotate(export_path, address, name, confidence, status="accepted",
+             source="manual-analysis", evidence=None, rationale="", create=True):
+    """Record one evidence-backed function-name decision in the reversible overlay.
 
-    export_path, manifest, index = load_export(args.export_path)
-    overlay = load_overlay(export_path, manifest, create=False)
-    address, function = load_function(export_path, index, args.address)
+    Programmatic entry point shared by the ``set`` CLI command and agent
+    adapters (e.g. the MCP write tool). With ``create=True`` (the default) the
+    overlay is created on first use so callers need no separate ``init`` step.
+    Returns a small result dict; never touches raw export files.
+    """
+    if confidence not in CONFIDENCE_LEVELS:
+        raise ValueError("Invalid confidence: {}".format(confidence))
+    if status not in STATUS_LEVELS:
+        raise ValueError("Invalid status: {}".format(status))
+
+    export_path, manifest, index = load_export(export_path)
+    overlay = load_overlay(export_path, manifest, create=create)
+    address, function = load_function(export_path, index, address)
     entries = overlay.setdefault("entries", {})
     entry = entries.setdefault(address, {"decisions": []})
 
     decision = {
-        "name": args.name,
-        "status": args.status,
-        "confidence": args.confidence,
-        "source": args.source,
+        "name": name,
+        "status": status,
+        "confidence": confidence,
+        "source": source,
         "created_utc": utc_now(),
         "function_identity": function_identity(function),
-        "evidence": args.evidence or [],
-        "rationale": args.rationale or "",
+        "evidence": list(evidence or []),
+        "rationale": rationale or "",
     }
     entry.setdefault("decisions", []).append(decision)
-    if args.status == "accepted":
-        entry["active_name"] = args.name
+    if status == "accepted":
+        entry["active_name"] = name
 
     overlay["updated_utc"] = utc_now()
     save_overlay(export_path, overlay)
     render_markdown(export_path, overlay)
-    print("{} -> {} ({}, {})".format(address, args.name, args.confidence, args.status))
+    return {
+        "address": address,
+        "name": name,
+        "raw_name": function.get("name", ""),
+        "confidence": confidence,
+        "status": status,
+    }
+
+
+def command_set(args):
+    # CLI keeps requiring an explicit `init` (create=False); agent callers use
+    # annotate(create=True) directly.
+    result = annotate(
+        args.export_path, args.address, args.name, args.confidence,
+        status=args.status, source=args.source,
+        evidence=args.evidence, rationale=args.rationale, create=False,
+    )
+    print("{} -> {} ({}, {})".format(
+        result["address"], result["name"], result["confidence"], result["status"]))
 
 
 def command_list(args):
