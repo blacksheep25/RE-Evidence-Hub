@@ -41,13 +41,17 @@ that suite or by CI.
   `tools/hybrid_search.py` (the optional `/semantic` backend), which imports
   `experimental.ai_tools.*` lazily and only when the semantic extras are present.
 
-## Related experimental code still under `tools/`
+## The analysis/agent cluster
 
-A cluster of analysis/agent modules under `tools/` (for example
-`analyze_binary.py`, `tool_agent.py`, `investigation_loop.py`, the `*_agent.py`
-files, `vector_indexer.py`) is also experimental, but it shares dependencies
-with the supported deterministic report tool `tools/start_investigation.py`
-through bare sibling imports. Splitting that cluster cleanly is a larger,
-riskier change and was intentionally left for a follow-up; see
-[current development state](../docs/current-state.md) for the supported-vs-experimental
-breakdown.
+`analyze_binary.py`, `tool_agent.py`, `local_agent.py`, `investigation_loop.py`,
+`context_engine.py`, `query_engine.py`, `analysis_agent.py`, `callgraph_agent.py`,
+`agent_controller.py`, `agent_executor.py`, `ai_answer.py`, `ai_planner.py`,
+`build_chunks.py`, and `vector_indexer.py` are the automation/agent layer. They
+now live here too. Where they call into the *supported* report subsystem
+(`evidence_collector`, `report_generator`, `startup_analyzer`,
+`investigation_memory`, `analysis_tools`, `evidence_tools`) they use
+package-qualified `from tools.X` imports; among themselves they use
+`from experimental.X`. Each adds a small `sys.path` bootstrap so it resolves
+whether imported or run as `python experimental/<name>.py`. See
+[current development state](../docs/current-state.md) for the full
+supported-vs-experimental breakdown.

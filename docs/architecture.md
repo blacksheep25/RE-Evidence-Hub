@@ -89,8 +89,8 @@ can create further files in the same export folder:
 | `tools/binary_triage.py` | `triage_report.json`, `triage_report.md` |
 | `tools/evidence_collector.py` | `evidence_database.json` |
 | `tools/startup_analyzer.py` | `startup_analysis.json`, `startup_analysis.md` |
-| `tools/callgraph_agent.py` | `callgraph_analysis.json` |
-| `tools/analysis_agent.py` | `analysis_report.json`, `analysis_report.md` |
+| `experimental/callgraph_agent.py` | `callgraph_analysis.json` |
+| `experimental/analysis_agent.py` | `analysis_report.json`, `analysis_report.md` |
 | `tools/report_generator.py` | `reverse_engineering_report.json`, `reverse_engineering_report.md` |
 | `tools/investigation_memory.py` | `investigation_memory.json` |
 | `tools/start_investigation.py` | `investigation_session.json` |
@@ -99,8 +99,8 @@ can create further files in the same export folder:
 | `tools/generate_evidence_pack.py` | `evidence_packs/<topic>.json` (derived binary + Media review pack) |
 | `tools/build_class_registry.py` | `class_registry.json` (derived class/RTTI/vtable review registry; vtable ownership only from explicit accepted evidence) |
 | `tools/build_name_review_queue.py` | `name_review_queue.json` (derived, non-promoting direct import/resource naming candidates) |
-| `exporters/embedding_exporter.py` / `tools/build_chunks.py` | `ai_chunks.json` |
-| `tools/vector_indexer.py` | `vectors/embeddings.npy`, `vectors/metadata.json` |
+| `exporters/embedding_exporter.py` / `experimental/build_chunks.py` | `ai_chunks.json` |
+| `experimental/vector_indexer.py` | `vectors/embeddings.npy`, `vectors/metadata.json` |
 | `experimental/build_embeddings_host.py` | A separate Chroma collection called `ghidra` |
 
 ## Host entry points
@@ -108,11 +108,11 @@ can create further files in the same export folder:
 | Command | Purpose | Main prerequisites |
 | --- | --- | --- |
 | `python tools/start_investigation.py <export>` | Triage, evidence collection, startup report, consolidated report, and empty investigation memory. | Core export. |
-| `python tools/analyze_binary.py <export>` | Alternative pipeline: vector index, subsystem report, call-graph analysis, startup, evidence, final report. | Core export plus `ai_chunks.json` for its first step. |
+| `python experimental/analyze_binary.py <export>` | Alternative pipeline: vector index, subsystem report, call-graph analysis, startup, evidence, final report. | Core export plus `ai_chunks.json` for its first step. |
 | `python tools/validate_export.py <export> --full` | Verifies required files, index identity, function count, and all function records. | Core export. |
-| `python tools/build_chunks.py <export>` | Creates `ai_chunks.json` from raw function JSON without rerunning Ghidra. | Core export. |
-| `python tools/query_engine.py <export> <query>` | Searches `ai_chunks.json` by lexical scoring. | `ai_chunks.json`. |
-| `python tools/vector_indexer.py <export>` | Builds local NumPy vectors with `all-MiniLM-L6-v2`. | `ai_chunks.json`, NumPy, sentence-transformers. |
+| `python experimental/build_chunks.py <export>` | Creates `ai_chunks.json` from raw function JSON without rerunning Ghidra. | Core export. |
+| `python experimental/query_engine.py <export> <query>` | Searches `ai_chunks.json` by lexical scoring. | `ai_chunks.json`. |
+| `python experimental/vector_indexer.py <export>` | Builds local NumPy vectors with `all-MiniLM-L6-v2`. | `ai_chunks.json`, NumPy, sentence-transformers. |
 | `python experimental/vector_query.py <export> <query>` | Searches local NumPy vectors. | `vectors/` output from the indexer. |
 | `python experimental/build_embeddings_host.py` | Rebuilds the configured Chroma collection using BGE embeddings. | Edit hard-coded paths; Chroma and sentence-transformers. |
 | `python binary_agent_server.py --export <export>` | Starts the local evidence JSON API on `127.0.0.1:5006`. | Core export and Flask; semantic routes load optional dependencies only when called. |
@@ -121,7 +121,7 @@ can create further files in the same export folder:
 | `python tools/generate_evidence_pack.py <title> ...` | Creates a bounded, reviewable evidence pack. | Core export; accepted annotations recommended. |
 | `python tools/build_class_registry.py <export>` | Builds a conservative class/vtable registry from globals and accepted annotations. | Core export, `globals.json`, annotations optional. |
 | `python tools/build_name_review_queue.py <export>` | Builds non-promoting name candidates from direct import/resource evidence. | Core export, strings/imports optional, annotations optional. |
-| `python tools/tool_agent.py <export> <api-url> <model>` | Interactive JSON-tool-call loop using the same local evidence core as HTTP/MCP. | Core export, Requests, compatible model API. |
+| `python experimental/tool_agent.py <export> <api-url> <model>` | Interactive JSON-tool-call loop using the same local evidence core as HTTP/MCP. | Core export, Requests, compatible model API. |
 
 `tools/evidence_tools.py` is the in-process adapter and direct CLI for Python
 agents and scripts. It wraps `LocalEvidenceStore` directly rather than calling

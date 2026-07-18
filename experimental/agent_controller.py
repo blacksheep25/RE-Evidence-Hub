@@ -20,8 +20,13 @@ import json
 import datetime
 
 
-from evidence_collector import EvidenceCollector
-from report_generator import ReportGenerator
+# Resolve tools.* / experimental.* whether run as a script or imported.
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
+from tools.evidence_collector import EvidenceCollector
+from tools.report_generator import ReportGenerator
 
 
 
