@@ -8,6 +8,8 @@ capability gate that Hermes requires.
 
 import json
 import os
+import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -53,10 +55,16 @@ def make_export():
         "address": "01000000", "value": "interface\\outer\\login_panel.asset",
         "functions": [{"address": "00401000", "name": "FUN_00401000"}],
     }])
-    _write(os.path.join(root, "imports.json"), [{
-        "address": "EXTERNAL:1", "name": "send", "library": "WS2_32.DLL",
-        "references": [{"address": "00402000", "name": "FUN_00402000"}],
-    }])
+    _write(os.path.join(root, "imports.json"), [
+        {
+            "address": "EXTERNAL:1", "name": "send", "library": "WS2_32.DLL",
+            "references": [{"address": "00402000", "name": "FUN_00402000"}],
+        },
+        {
+            "address": "EXTERNAL:2", "name": "WSASend", "library": "WS2_32.DLL",
+            "references": [{"address": "00402000", "name": "FUN_00402000"}],
+        },
+    ])
     return temporary
 
 
@@ -78,15 +86,37 @@ class AgentMcpTests(unittest.TestCase):
         result = mcp.handle(self.store, {"jsonrpc": "2.0", "id": 0, "method": "initialize"})["result"]
         self.assertIsNotNone(result["capabilities"].get("tools"))
 
+    def test_stdio_server_starts_from_foreign_cwd_with_stripped_environment(self):
+        script = os.path.join(os.path.dirname(os.path.dirname(__file__)), "binary_agent_mcp_server.py")
+        with tempfile.TemporaryDirectory() as foreign_cwd:
+            process = subprocess.run(
+                [sys.executable, os.path.abspath(script), "--export", self.temporary.name],
+                input=json.dumps({"jsonrpc": "2.0", "id": 7, "method": "initialize"}) + "\n",
+                text=True,
+                capture_output=True,
+                cwd=foreign_cwd,
+                env={"SystemRoot": os.environ.get("SystemRoot", r"C:\Windows")},
+                timeout=15,
+            )
+        self.assertEqual(0, process.returncode, process.stderr)
+        response = json.loads(process.stdout.strip())
+        self.assertEqual(7, response["id"])
+        self.assertIn("tools", response["result"]["capabilities"])
+
     def test_tools_list_includes_write_and_queue_tools(self):
         result = mcp.handle(self.store, {"jsonrpc": "2.0", "id": 0, "method": "tools/list"})["result"]
-        names = {t["name"] for t in result["tools"]}
+        tools = {t["name"]: t for t in result["tools"]}
+        names = set(tools)
         self.assertTrue({"binary_annotate", "binary_next_target", "binary_progress"} <= names)
+        schema = tools["binary_annotate"]["inputSchema"]
+        self.assertEqual(["medium", "high"], schema["properties"]["confidence"]["enum"])
+        self.assertTrue({"evidence", "rationale", "evidence_refs"} <= set(schema["required"]))
 
     def test_guarded_annotate_accepts_grounded_evidence_and_persists(self):
         payload, _ = _call(self.store, "binary_annotate", {
             "address": "00402000", "name": "Net_Send", "confidence": "high",
             "evidence": ["Calls the send import"], "evidence_refs": ["send"],
+            "rationale": "The direct send import establishes network transmit behavior.",
         })
         self.assertTrue(payload["accepted"])
         # Visible in the same session (reload happened) and durable on disk.
@@ -94,6 +124,7 @@ class AgentMcpTests(unittest.TestCase):
         with open(os.path.join(self.temporary.name, "annotations", "function_names.json"), encoding="utf-8") as handle:
             overlay = json.load(handle)
         self.assertEqual("Net_Send", overlay["entries"]["00402000"]["active_name"])
+        self.assertFalse(any(name.startswith(".annotations-") for name in os.listdir(os.path.join(self.temporary.name, "annotations"))))
 
     def test_guarded_annotate_rejects_hallucinated_evidence(self):
         payload, _ = _call(self.store, "binary_annotate", {
@@ -111,6 +142,8 @@ class AgentMcpTests(unittest.TestCase):
         # Annotate 00402000 with grounded evidence; the queue must then skip it.
         _call(self.store, "binary_annotate", {
             "address": "00402000", "name": "Net_Send", "confidence": "medium", "evidence_refs": ["send"],
+            "evidence": ["Calls the send import"],
+            "rationale": "The direct send import establishes network transmit behavior.",
         })
         remaining = []
         target = _call(self.store, "binary_next_target")[0]
@@ -131,9 +164,33 @@ class AgentMcpTests(unittest.TestCase):
         # resolving it to the same canonical address the verifier used.
         payload, _ = _call(self.store, "binary_annotate", {
             "address": "FUN_00402000", "name": "Net_Send", "confidence": "medium", "evidence_refs": ["send"],
+            "evidence": ["Calls the send import"],
+            "rationale": "The direct send import establishes network transmit behavior.",
         })
         self.assertTrue(payload["accepted"])
         self.assertEqual("00402000", payload["address"])
+
+    def test_guard_rejects_empty_malformed_and_unlinked_names(self):
+        common = {
+            "address": "00402000",
+            "confidence": "high",
+            "evidence": ["Calls the send import"],
+            "evidence_refs": ["send"],
+            "rationale": "The direct send import establishes network transmit behavior.",
+        }
+        for name in ("", "bad name", "FUN_00402000", "DeleteAccount"):
+            payload, _ = _call(self.store, "binary_annotate", dict(common, name=name))
+            self.assertFalse(payload["accepted"], name)
+        self.assertFalse(os.path.exists(os.path.join(self.temporary.name, "annotations", "function_names.json")))
+
+    def test_two_grounded_refs_allow_a_semantic_name(self):
+        payload, _ = _call(self.store, "binary_annotate", {
+            "address": "00402000", "name": "Net_TransmitBuffer", "confidence": "medium",
+            "evidence": ["Calls both send and WSASend imports"],
+            "evidence_refs": ["send", "WSASend"],
+            "rationale": "Two independent send APIs establish outbound buffer transmission.",
+        })
+        self.assertTrue(payload["accepted"])
 
     def test_progress_unknown_address_is_a_tool_error(self):
         payload, is_error = _call(self.store, "binary_progress", {"address": "nope", "status": "skipped"})

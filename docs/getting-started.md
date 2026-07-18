@@ -41,14 +41,35 @@ evidence; you still decide what the evidence proves.
 
 - Ghidra with the target program loaded and analysed.
 - Python 3 for host-side tools.
-- Host dependencies when using the HTTP API or optional helpers:
+- Host dependencies when using the HTTP API, CLI, MCP adapter, or derived-index
+  builders. The supported baseline is small:
 
 ```powershell
-python -m pip install -r requirements.txt
+python -m pip install -r requirements-core.txt
+```
+
+  For an exact, reproducible install (pinned transitive dependencies), use the
+  lock file instead:
+
+```powershell
+python -m pip install -r requirements.lock
+```
+
+  The optional semantic/vector search path (Chroma + embeddings) is experimental
+  and pulls in PyTorch. Install it only if you need those routes:
+
+```powershell
+python -m pip install -r requirements-optional.txt
 ```
 
 Core export runs inside Ghidra's own scripting environment. Host tools run in
-normal Python. Keep those worlds separate.
+normal Python. Keep those worlds separate. A virtual environment is recommended
+for the host tools:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.lock
+```
 
 ## Step 1: Export From Ghidra
 
@@ -76,6 +97,41 @@ The export report is written to:
 ```
 
 Open that if a stage failed.
+
+### Alternative: export without opening Ghidra (headless)
+
+If you would rather not open the Ghidra GUI, run the same pipeline headless with
+`tools/headless_export.py`. It imports the binary, runs auto-analysis, and runs
+the exporter through PyGhidra.
+
+Prerequisites:
+
+- A local Ghidra install (>= 12.0). Point to it with `--ghidra` or the
+  `GHIDRA_INSTALL_DIR` environment variable.
+- A JDK 21 (Ghidra's requirement), on `PATH`, in `JAVA_HOME`, or passed with
+  `--java-home`.
+- PyGhidra in your host Python:
+
+```powershell
+python -m pip install -r requirements-headless.txt
+# offline, matching your Ghidra build exactly:
+# python -m pip install --no-index -f <GHIDRA>\Ghidra\Features\PyGhidra\pypkg\dist pyghidra
+```
+
+Run it:
+
+```powershell
+$env:GHIDRA_INSTALL_DIR = "C:\path\to\ghidra_12.1.2_PUBLIC"
+python .\tools\headless_export.py --binary "C:\samples\sample_program.exe"
+```
+
+The export lands in the same place as the GUI exporter
+(`%USERPROFILE%\ghidra_ai_exports\<ProgramName>`). Continue with Step 2.
+
+Ghidra 11.3+ removed Jython, so a plain
+`analyzeHeadless ... -postScript run_exporter.py` cannot run the Python
+exporter ("Ghidra was not started with PyGhidra"). `headless_export.py` uses
+PyGhidra specifically to avoid that.
 
 ## Step 2: Validate the Export
 
@@ -218,7 +274,7 @@ There are three ways AI can use the export:
 For an interactive local model:
 
 ```powershell
-python .\tools\tool_agent.py %USERPROFILE%\ghidra_ai_exports\sample_program.exe http://localhost:11434/api/chat llama3
+python .\experimental\tool_agent.py %USERPROFILE%\ghidra_ai_exports\sample_program.exe http://localhost:11434/api/chat llama3
 ```
 
 The model is expected to request tools, receive evidence, and then answer with
@@ -269,7 +325,11 @@ python .\binary_agent_server.py --port 5010
 
 Search misses decompiler-body text:
 
-Build `local_evidence.sqlite3` with `tools/build_local_index.py`.
+Build `local_evidence.sqlite3` with `tools/build_local_index.py`. Body search is
+substring-based, so `recv` also finds `WSARecv`. If an index built by an older
+version misses substrings, rebuild it: the index now uses a trigram tokenizer
+(one-time cost — the index is larger and slower to build than the old
+whole-token one, but this is optional derived data you can rebuild any time).
 
 Class or review routes say unavailable:
 

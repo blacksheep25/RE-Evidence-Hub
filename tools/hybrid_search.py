@@ -2,14 +2,14 @@ import json
 import os
 import re
 
-from ai_tools.ranker import FunctionRanker
-from ai_tools.query import BinarySearch
-from ai_tools.embeddings import BinaryEmbeddings
-from ai_tools.memory import BinaryMemory
-from ai_tools.callgraph import CallGraph
-from ai_tools.ghidra_types import BinaryTypes
-from ai_tools.string_search import StringSearch
-from ai_tools.strings import BinaryStrings
+from experimental.ai_tools.ranker import FunctionRanker
+from experimental.ai_tools.query import BinarySearch
+from experimental.ai_tools.embeddings import BinaryEmbeddings
+from experimental.ai_tools.memory import BinaryMemory
+from experimental.ai_tools.callgraph import CallGraph
+from experimental.ai_tools.ghidra_types import BinaryTypes
+from experimental.ai_tools.string_search import StringSearch
+from experimental.ai_tools.strings import BinaryStrings
 
 
 NETWORK_WORDS = [
@@ -78,7 +78,7 @@ class HybridSearch:
 
         self.summaries = {}
 
-        from ai_tools.function_namer import FunctionNamer
+        from experimental.ai_tools.function_namer import FunctionNamer
 
         self.namer = FunctionNamer(
             export_path

@@ -25,12 +25,18 @@ import time
 import traceback
 
 
+# Make the sibling tools importable whether this file is run as a script
+# (python tools/start_investigation.py) or imported as tools.start_investigation.
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
 
-from binary_triage import BinaryTriage
-from evidence_collector import EvidenceCollector
-from startup_analyzer import StartupAnalyzer
-from report_generator import ReportGenerator
-from investigation_memory import InvestigationMemory
+
+from tools.binary_triage import BinaryTriage
+from tools.evidence_collector import EvidenceCollector
+from tools.startup_analyzer import StartupAnalyzer
+from tools.report_generator import ReportGenerator
+from tools.investigation_memory import InvestigationMemory
 
 
 
@@ -317,7 +323,7 @@ class InvestigationRunner:
 
         print(
 
-            "Next step: start tools/tool_agent.py"
+            "Next step: start experimental/tool_agent.py"
 
         )
 

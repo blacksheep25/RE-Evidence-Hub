@@ -27,6 +27,7 @@ import re
 from typing import Any, Dict, List, Tuple
 
 MIN_REF_LEN = 3
+SYMBOL_PATTERN = re.compile(r"^[A-Za-z_~?$@][A-Za-z0-9_:$@?<>~.\-]{0,127}$")
 
 
 def evidence_values(lookup: Dict[str, Any]) -> List[str]:
@@ -64,14 +65,49 @@ def verify_evidence_refs(lookup: Dict[str, Any], refs: List[str]) -> Tuple[bool,
     """Check each cited ref is grounded in the function's discrete evidence.
 
     Returns ``(all_grounded, missing)``. Refs shorter than ``MIN_REF_LEN`` are
-    ignored as too generic; a call with no usable ref returns ``(False, [])`` so
-    a citation of only short/empty tokens is rejected. A ref is grounded only if
+    rejected as too generic. A ref is grounded only if
     it appears as a whole token within an import name, string value, or named
     callee/caller (see :func:`evidence_values`).
     """
-    usable = [str(ref).strip() for ref in (refs or []) if len(str(ref).strip()) >= MIN_REF_LEN]
-    if not usable:
+    normalized = [str(ref).strip() for ref in (refs or [])]
+    if not normalized or not any(normalized):
         return False, []
+    invalid = [ref for ref in normalized if len(ref) < MIN_REF_LEN]
+    if invalid:
+        return False, invalid
     haystack = "\n".join(evidence_values(lookup)).lower()
-    missing = [ref for ref in usable if not _contains_token(haystack, ref.lower())]
+    missing = [ref for ref in normalized if not _contains_token(haystack, ref.lower())]
     return (len(missing) == 0, missing)
+
+
+def validate_annotation_proposal(name: str, confidence: str, evidence: List[str],
+                                 rationale: str, refs: List[str]) -> Tuple[bool, str]:
+    """Apply the acceptance policy after refs have been grounded.
+
+    Citation grounding is necessary but not sufficient: unattended writes also
+    need a usable symbol, reviewable reasoning, and either a reference linked to
+    the proposed name or multiple independent concrete references.
+    """
+    proposed = str(name or "").strip()
+    if not proposed or not SYMBOL_PATTERN.fullmatch(proposed) or proposed.startswith("FUN_"):
+        return False, "name must be a non-placeholder symbol without whitespace or control characters"
+    if confidence not in ("medium", "high"):
+        return False, "autonomous accepted annotations require medium or high confidence"
+
+    evidence_lines = [str(item).strip() for item in (evidence or []) if str(item).strip()]
+    if not evidence_lines:
+        return False, "at least one human-readable evidence line is required"
+    explanation = str(rationale or "").strip()
+    if len(explanation) < 12:
+        return False, "a concrete rationale of at least 12 characters is required"
+
+    distinct_refs = {str(ref).strip().lower() for ref in (refs or []) if str(ref).strip()}
+    name_terms = {term.lower() for term in re.findall(r"[A-Za-z0-9]+", proposed)}
+    compact_name = re.sub(r"[^a-z0-9]", "", proposed.lower())
+    linked = any(
+        ref in name_terms or re.sub(r"[^a-z0-9]", "", ref) in compact_name
+        for ref in distinct_refs
+    )
+    if not linked and len(distinct_refs) < 2:
+        return False, "one citation must support a name term, or two independent evidence refs are required"
+    return True, ""

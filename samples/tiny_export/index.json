@@ -1,0 +1,11 @@
+{
+    "version": 2,
+    "functions": {
+        "00401000": {"address": "00401000", "name": "FUN_00401000", "file": "functions/00401000.json"},
+        "00402000": {"address": "00402000", "name": "FUN_00402000", "file": "functions/00402000.json"}
+    },
+    "function_names": {
+        "FUN_00401000": ["00401000"],
+        "FUN_00402000": ["00402000"]
+    }
+}

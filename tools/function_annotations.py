@@ -18,6 +18,7 @@ import hashlib
 import json
 import os
 import sys
+import tempfile
 
 
 SCHEMA_VERSION = 1
@@ -34,9 +35,21 @@ def load_json(path):
 
 
 def write_json(path, value):
-    with open(path, "w", encoding="utf-8", newline="\n") as handle:
+    directory = os.path.dirname(path) or "."
+    handle = tempfile.NamedTemporaryFile(
+        "w", encoding="utf-8", newline="\n", dir=directory,
+        prefix=".annotations-", suffix=".tmp", delete=False,
+    )
+    try:
         json.dump(value, handle, indent=2, sort_keys=True)
         handle.write("\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+        handle.close()
+        os.replace(handle.name, path)
+    finally:
+        if os.path.exists(handle.name):
+            os.remove(handle.name)
 
 
 def utc_now():

@@ -1,4 +1,4 @@
-from ai_tools.hybrid import HybridSearch
+from experimental.ai_tools.hybrid import HybridSearch
 
 
 db = HybridSearch(

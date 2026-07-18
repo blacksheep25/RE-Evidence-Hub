@@ -30,11 +30,11 @@ if _PROJECT_ROOT not in sys.path:
 from host_config import DEFAULT_EXPORT_PATH
 from tools.local_evidence import EvidenceError, LocalEvidenceStore
 from tools.function_annotations import annotate
-from tools.agent_evidence import verify_evidence_refs
+from tools.agent_evidence import validate_annotation_proposal, verify_evidence_refs
 from tools import investigation_ledger as ledger
 
 
-SERVER_INFO = {"name": "binary-local-evidence", "version": "1.0.0"}
+SERVER_INFO = {"name": "binary-local-evidence", "version": "1.1.0"}
 
 TOOLS = [
     {
@@ -98,21 +98,22 @@ TOOLS = [
         "name": "binary_annotate",
         "description": (
             "Record a confirmed, evidence-backed function name in the reversible overlay (the only WRITE tool). "
-            "Every item in evidence_refs MUST appear verbatim in this function's own evidence (an import name, string value, "
-            "or callee name from binary_lookup); the write is REJECTED if any ref is not found, so cite concrete refs you actually saw. "
+            "Every evidence_ref must be grounded in this function's own imports, strings, or named relationships. "
+            "Acceptance also requires a valid symbol, medium/high confidence, evidence, rationale, and either a name-linked ref "
+            "or two independent refs. "
             "On success the name becomes the function's active_name and the target is marked done."
         ),
         "inputSchema": {
             "type": "object",
             "properties": {
                 "address": {"type": "string", "description": "Function address or an unambiguous exact function name."},
-                "name": {"type": "string", "description": "The confirmed function name to record."},
-                "confidence": {"type": "string", "enum": ["low", "medium", "high"]},
-                "evidence": {"type": "array", "items": {"type": "string"}, "description": "Human-readable justification lines."},
-                "evidence_refs": {"type": "array", "items": {"type": "string"}, "description": "Concrete tokens (import names, string values, callee names) that must appear verbatim in this function's evidence; the write is rejected if any is missing."},
-                "rationale": {"type": "string"},
+                "name": {"type": "string", "minLength": 1, "description": "The confirmed function symbol to record."},
+                "confidence": {"type": "string", "enum": ["medium", "high"]},
+                "evidence": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}, "description": "Human-readable justification lines."},
+                "evidence_refs": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 3}, "description": "Concrete import, string, or named-relationship tokens grounded in this function."},
+                "rationale": {"type": "string", "minLength": 12},
             },
-            "required": ["address", "name", "confidence", "evidence_refs"],
+            "required": ["address", "name", "confidence", "evidence", "evidence_refs", "rationale"],
         },
     },
     {
@@ -172,10 +173,26 @@ def _annotate_guarded(store, arguments):
             "missing_refs": missing,
             "hint": "Cite concrete import names, string values, or callee names you saw in binary_lookup, or mark the target skipped.",
         }
+    policy_ok, reason = validate_annotation_proposal(
+        arguments.get("name", ""),
+        arguments.get("confidence", ""),
+        arguments.get("evidence", []) or [],
+        arguments.get("rationale", ""),
+        refs,
+    )
+    if not policy_ok:
+        ledger.record(store.export_path, resolved, "deferred", note=reason)
+        return {
+            "accepted": False,
+            "address": resolved,
+            "reason": reason,
+            "missing_refs": [],
+            "hint": "Use a valid evidence-linked symbol with medium/high confidence, evidence lines, and a concrete rationale; otherwise skip.",
+        }
     result = annotate(
         store.export_path,
         resolved,
-        arguments.get("name", ""),
+        str(arguments.get("name", "")).strip(),
         arguments.get("confidence", "medium"),
         status="accepted",
         source="autonomous-agent",
@@ -241,7 +258,10 @@ def handle(store, message):
         return response(message_id, {"tools": TOOLS})
     if method == "tools/call":
         try:
-            value = call_tool(store, params.get("name", ""), params.get("arguments", {}) or {})
+            arguments = params.get("arguments", {}) or {}
+            if not isinstance(arguments, dict):
+                raise ValueError("Tool arguments must be a JSON object")
+            value = call_tool(store, params.get("name", ""), arguments)
             return response(message_id, tool_result(value))
         except (EvidenceError, OSError, ValueError) as exc:
             return response(message_id, tool_result({"error": str(exc)}, True))
@@ -253,7 +273,7 @@ def handle(store, message):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="Serve a Ghidra export through read-only local MCP tools.")
+    parser = argparse.ArgumentParser(description="Serve a Ghidra export through local evidence MCP tools.")
     parser.add_argument("--export", dest="export_path", default=DEFAULT_EXPORT_PATH)
     args = parser.parse_args(argv)
     try:

@@ -1,4 +1,4 @@
-from ai_tools.query import BinarySearch
+from experimental.ai_tools.query import BinarySearch
 
 
 db = BinarySearch(

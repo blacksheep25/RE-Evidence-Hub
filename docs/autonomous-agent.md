@@ -52,16 +52,20 @@ re-served.
 Nobody is watching at 3am, and a wrong accepted name is self-reinforcing (it
 feeds back as `active_name` on every future lookup). So `binary_annotate`
 requires **`evidence_refs`** — concrete tokens (an import name, a string value,
-a callee name) — and **rejects the write if any ref is not present in that
-function's own evidence bundle**. A hallucinated justification never becomes an
-accepted name; the tool returns `{accepted: false, missing_refs: [...]}` and the
-agent can retry with real refs or skip. This enforces the project's
-evidence-first rule mechanically.
+a callee/caller name) — and rejects the write if any ref is absent from that
+function's own evidence bundle. Grounding alone is not enough: the proposal must
+also use a valid non-placeholder symbol, medium/high confidence, at least one
+human-readable evidence line, and a concrete rationale. One ref must support a
+term in the proposed name; otherwise two independent grounded refs are required.
+The tool returns `{accepted: false, ...}` when any gate fails, and the agent can
+retry once with real support or skip. This is a conservative acceptance floor,
+not a claim that software can prove the best semantic name automatically.
 
 ## Self-healing / operational notes
 
-- **Resumable:** state is on disk; restart continues. Ledger writes are atomic
-  (write-temp-then-rename), so a crash mid-write cannot corrupt progress.
+- **Resumable:** state is on disk; restart continues. Ledger writes and accepted
+  annotation JSON use atomic replacement, so a crash mid-write cannot leave
+  partial durable state.
 - **No dead loops:** the ledger counts attempts; mark a target `skipped` when it
   can't be named and the frontier moves on.
 - **Bounded work per step:** query one function at a time via `binary_lookup`;
@@ -175,8 +179,8 @@ literally saw in this function's `binary_lookup` output, from one of:
 
 DO NOT cite (these are rejected and waste an attempt): decompiler locals
 (param_1, iVar1), assembly mnemonics/registers (mov, eax), generic keywords
-(return, if), or FUN_... placeholder names. If you cannot cite at least one real
-import/string/named-callee, you do not have evidence — skip.
+(return, if), or FUN_... placeholder names. If you cannot cite real
+import/string/named-relationship evidence, skip.
 
 - name: PascalCase, shaped Subsystem_VerbObjectQualifier (e.g. Net_RecvPacket,
   Auth_ValidateLoginToken). Do not imply a class, protocol, or game feature you
@@ -185,6 +189,9 @@ import/string/named-callee, you do not have evidence — skip.
   behavior; `medium` for strong-but-indirect; otherwise skip rather than record
   `low`.
 - evidence: 1-2 short human-readable justification lines.
+- rationale: a concrete sentence explaining how those refs support this exact
+  name. A single ref must support a term in the name; otherwise cite at least two
+  independent grounded refs.
 
 If `binary_annotate` returns `{"accepted": false, ...}`, read `missing_refs` /
 `hint`. You may retry ONCE with corrected, real refs. If it still fails, call

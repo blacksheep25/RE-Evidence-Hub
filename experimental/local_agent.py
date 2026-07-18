@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import sys
 
-try:
-    from tools.tool_agent import ToolAgent
-except ImportError:
-    from tool_agent import ToolAgent
+import os
+
+# Resolve tools.* / experimental.* whether run as a script or imported.
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
+from experimental.tool_agent import ToolAgent
 
 
 class LocalAgent(ToolAgent):
