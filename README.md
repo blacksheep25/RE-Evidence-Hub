@@ -130,6 +130,7 @@ revhub doctor --json     # machine-readable
 | Goal | Use |
 | --- | --- |
 | Create a portable dataset from Ghidra | `run_exporter.py` in Ghidra |
+| Create a dataset without opening Ghidra | `python tools/headless_export.py --binary <exe>` |
 | Check that an export is structurally valid | `python tools/validate_export.py <export> --full` |
 | Search and inspect evidence interactively | `binary_agent_server.py` on `127.0.0.1:5006` |
 | Query evidence from a shell without starting a server | `python tools/evidence_tools.py <command>` |
@@ -227,6 +228,7 @@ AI should use this project as an evidence retriever, not as an oracle.
 | Path | Role |
 | --- | --- |
 | `run_exporter.py`, `AIExporter.py`, `pipeline.py` | Ghidra Script Manager entry point and export orchestration. |
+| `tools/headless_export.py` | Run the same export without the Ghidra GUI, via PyGhidra. |
 | `exporters/` | Export modules for memory, imports, types, globals, strings, functions, call graph, index, and summaries. |
 | `util/` | Ghidra-side helpers for decompilation, filesystem handling, and JSON writing. |
 | `binary_agent_server.py` | Flask HTTP adapter over the local evidence store. |
@@ -243,7 +245,11 @@ AI should use this project as an evidence retriever, not as an oracle.
 
 - Ghidra-side code and host-side Python run in different environments. Keep
   host-only dependencies out of `exporters/` and `util/`.
-- `requirements.txt` lists host dependencies; there is no lock file yet.
+- Install the supported baseline with `python -m pip install -r requirements-core.txt`
+  (just `flask`, `requests`, `numpy`). For an exact, reproducible install use
+  `requirements.lock`. The optional semantic/vector stack lives in
+  `requirements-optional.txt` and is not needed for the evidence workflow.
+  `requirements.txt` still installs everything for backward compatibility.
 - Run tests with:
 
 ```powershell

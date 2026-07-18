@@ -1,0 +1,15 @@
+# Core host-side dependencies for the supported baseline.
+#
+# This is all you need for the normal evidence workflow: the HTTP API
+# (binary_agent_server.py), the stdio MCP adapter (binary_agent_mcp_server.py),
+# the CLI (tools/evidence_tools.py), the read-only core (tools/local_evidence.py),
+# the derived-index builders, and the test suite.
+#
+# The Ghidra Script Manager exporter uses Ghidra's own Python/Java environment
+# and does not install these packages.
+#
+# Pins reflect a verified-working environment (Python 3.11). For a fully
+# reproducible install including transitive dependencies, use requirements.lock.
+flask==3.1.3
+requests==2.34.2
+numpy==2.4.6

@@ -88,7 +88,7 @@ can create further files in the same export folder:
 | `tools/investigation_memory.py` | `investigation_memory.json` |
 | `tools/start_investigation.py` | `investigation_session.json` |
 | `tools/function_annotations.py` | `annotations/function_names.json`, `annotations/function_names.md` |
-| `tools/build_local_index.py` | `local_evidence.sqlite3` (optional, derived FTS5 index) |
+| `tools/build_local_index.py` | `local_evidence.sqlite3` (optional, derived FTS5 index; trigram tokenizer for substring body search) |
 | `tools/generate_evidence_pack.py` | `evidence_packs/<topic>.json` (derived binary + Media review pack) |
 | `tools/build_class_registry.py` | `class_registry.json` (derived class/RTTI/vtable review registry; vtable ownership only from explicit accepted evidence) |
 | `tools/build_name_review_queue.py` | `name_review_queue.json` (derived, non-promoting direct import/resource naming candidates) |

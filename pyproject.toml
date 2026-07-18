@@ -12,9 +12,9 @@ license = { text = "See repository" }
 # Supported baseline only. The Ghidra Script Manager exporter runs in Ghidra's
 # own Python and does not use these. Heavier stacks are optional extras below.
 dependencies = [
-    "flask",
-    "requests",
-    "numpy",
+    "flask==3.1.3",
+    "requests==2.34.2",
+    "numpy==2.4.6",
 ]
 
 [project.optional-dependencies]

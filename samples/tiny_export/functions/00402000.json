@@ -1,0 +1,18 @@
+{
+    "address": "00402000",
+    "name": "FUN_00402000",
+    "namespace": "",
+    "signature": "void FUN_00402000(void)",
+    "hash": "b",
+    "range": {},
+    "size": 8,
+    "instruction_count": 2,
+    "parameters": [],
+    "locals": [],
+    "assembly": "RET",
+    "decompiler": {"success": true, "c_code": "return;"},
+    "calls": [],
+    "called_by": [{"address": "00401000", "name": "FUN_00401000"}],
+    "comments": [],
+    "xrefs": []
+}

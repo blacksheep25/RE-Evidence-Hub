@@ -1,7 +1,18 @@
 # Host-side analysis tools. The Ghidra Script Manager exporter uses Ghidra's
 # own Python/Java environment and does not install these packages.
-flask
-requests
-numpy
-chromadb
-sentence-transformers
+#
+# This file installs BOTH the supported baseline and the optional experimental
+# stack, for backward compatibility. Most users want the smaller install:
+#
+#   Supported baseline (recommended)  ->  requirements-core.txt
+#     flask, requests, numpy  (everything the evidence workflow needs)
+#
+#   Reproducible baseline (exact pins)  ->  requirements.lock
+#
+#   Optional semantic/vector path (heavy; pulls in PyTorch)  ->  requirements-optional.txt
+#     chromadb, sentence-transformers  (experimental; leads only)
+#
+# See docs/getting-started.md and docs/current-state.md for details.
+
+-r requirements-core.txt
+-r requirements-optional.txt
