@@ -1,0 +1,14 @@
+{
+    "binary": {
+        "name": "sample_program.exe",
+        "image_base": "00400000"
+    },
+    "language": {
+        "id": "x86:LE:32:default",
+        "processor": "x86"
+    },
+    "functions": {
+        "count": 2
+    },
+    "note": "Hand-authored 2-function sample export for docs, demos, and CI. Not produced by Ghidra."
+}

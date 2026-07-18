@@ -212,5 +212,16 @@ class LocalEvidenceStoreTests(unittest.TestCase):
         self.assertIn("assembly", payload)
 
 
+class ImportabilityTests(unittest.TestCase):
+    def test_start_investigation_is_importable_as_a_module(self):
+        # Regression guard: the supported report tool must qualify its sibling
+        # imports (from tools.X import ...) so it can be imported as a module,
+        # not only run as `python tools/start_investigation.py`.
+        import importlib
+
+        module = importlib.import_module("tools.start_investigation")
+        self.assertTrue(hasattr(module, "InvestigationRunner"))
+
+
 if __name__ == "__main__":
     unittest.main()
