@@ -1,0 +1,23 @@
+# Fully pinned lock for the supported baseline (requirements-core.txt),
+# including transitive dependencies. Generated with `pip freeze` from a
+# verified-working virtual environment on Python 3.11 where all tests pass.
+#
+# Reproduce the baseline exactly with:
+#     python -m pip install -r requirements.lock
+#
+# This lock does NOT include the optional semantic/vector stack
+# (requirements-optional.txt), which is experimental and left unpinned.
+blinker==1.9.0
+certifi==2026.6.17
+charset-normalizer==3.4.9
+click==8.4.2
+colorama==0.4.6
+Flask==3.1.3
+idna==3.18
+itsdangerous==2.2.0
+Jinja2==3.1.6
+MarkupSafe==3.0.3
+numpy==2.4.6
+requests==2.34.2
+urllib3==2.7.0
+Werkzeug==3.1.8

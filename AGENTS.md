@@ -20,7 +20,8 @@
 
 # Commands
 
-- Install: `pip install -r requirements.txt`
+- Install supported host tools: `pip install -r requirements-core.txt`
+- Install supported and experimental host tools: `pip install -r requirements.txt`
 - Test host-side code: `python -m unittest discover -s tests`
 - Serve: `python binary_agent_server.py --export <export> --port 5006`
 - Validate an export: `python tools/validate_export.py <export> --full`
