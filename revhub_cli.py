@@ -63,7 +63,7 @@ DELEGATES = {
     "classes": ("tools.build_class_registry", "main", {"--output"}),
     "review-queue": ("tools.build_name_review_queue", "main", {"--output", "--limit"}),
     "network": ("tools.network_reconstruction", "main", {"--output-dir", "--limit"}),
-    "overnight": ("tools.autonomous_naming_runner", "main", {"--model", "--endpoint", "--provider", "--run-id", "--api-key", "--max-targets", "--max-minutes", "--context-chars", "--timeout", "--retries", "--temperature", "--max-tokens"}),
+    "overnight": ("tools.autonomous_naming_runner", "main", {"--model", "--endpoint", "--provider", "--run-id", "--api-key", "--max-targets", "--max-minutes", "--context-chars", "--context-window", "--timeout", "--retries", "--temperature", "--max-tokens"}),
     "network-capture": ("tools.network_capture", "main", {"--source", "--output"}),
     "protocol-contract": ("tools.protocol_contract", "main", {"--output"}),
     "semantic-index": ("tools.semantic_index", "main", {"--model", "--batch-size", "--max-chars"}),

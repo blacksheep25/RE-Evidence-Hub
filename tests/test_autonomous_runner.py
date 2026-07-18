@@ -3,7 +3,7 @@ import unittest
 from unittest import mock
 
 from tests.test_agent_mcp import make_export
-from tools.autonomous_naming_runner import LocalModelClient, ModelResponseError, _json_object, run_overnight
+from tools.autonomous_naming_runner import LocalModelClient, ModelResponseError, _bounded_lookup, _json_object, run_overnight
 from tools.local_evidence import LocalEvidenceStore
 
 
@@ -95,9 +95,24 @@ class AutonomousRunnerTests(unittest.TestCase):
     @mock.patch("tools.autonomous_naming_runner.requests.post")
     def test_ollama_native_response(self, post):
         post.return_value = FakeResponse({"message": {"content": '{"action":"defer","note":"needs caller"}'}})
-        decision = LocalModelClient("http://local/api/chat", "fixture", provider="ollama", retries=0).decide({"function": {"address": "1"}})
+        decision = LocalModelClient(
+            "http://local/api/chat", "fixture", provider="ollama", retries=0,
+            max_tokens=600, context_window=16384,
+        ).decide({"function": {"address": "1"}})
         self.assertEqual("defer", decision["action"])
-        self.assertEqual("json", post.call_args.kwargs["json"]["format"])
+        payload = post.call_args.kwargs["json"]
+        self.assertEqual("json", payload["format"])
+        self.assertEqual(600, payload["options"]["num_predict"])
+        self.assertEqual(16384, payload["options"]["num_ctx"])
+
+    def test_bounded_lookup_is_compact_and_lists_allowed_refs(self):
+        store = LocalEvidenceStore(self.temporary.name)
+        lookup = _bounded_lookup(store, "00402000", context_chars=10)
+        self.assertEqual(["send", "WSASend"], lookup["allowed_evidence_refs"])
+        self.assertEqual("WS2_32.DLL", lookup["evidence"]["imports"][0]["library"])
+        self.assertNotIn("xrefs", lookup["evidence"])
+        self.assertNotIn("locals", lookup["decompiler"])
+        self.assertIn("truncated by overnight runner", lookup["decompiler"]["c_code"])
 
     @mock.patch("tools.autonomous_naming_runner.requests.post")
     def test_malformed_model_output_is_distinct_from_provider_failure(self, post):

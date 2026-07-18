@@ -74,7 +74,9 @@ deterministic report tool (`tools/start_investigation.py` with
 project layout (`project_layout.py`); networking reconstruction
 (`tools/network_reconstruction.py`, `tools/network_capture.py`,
 `tools/protocol_contract.py`); isolated unattended naming
-(`tools/naming_candidates.py`, `tools/autonomous_naming_runner.py`); performance
+(`tools/naming_candidates.py`, `tools/autonomous_naming_runner.py`) with an
+explicit Ollama context-window control, compact prompts, and guard-compatible
+evidence-reference lists; performance
 benchmarking (`tools/benchmark_search.py`); and mutable-artifact schema tooling
 (`tools/migrate_artifacts.py`).
 

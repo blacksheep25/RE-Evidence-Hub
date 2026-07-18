@@ -137,10 +137,11 @@ Or test one decision through Ollama's native local endpoint:
 
 ```powershell
 revhub overnight --provider ollama `
-  --endpoint http://127.0.0.1:11434/api/chat `
-  --model qwen3-coder:30b `
-  --run-id investigation-01 `
-  --dry-run
+    --endpoint http://127.0.0.1:11434/api/chat `
+    --model qwen3-coder:30b `
+    --run-id investigation-01 `
+    --context-window 8192 `
+    --dry-run
 ```
 
 Before leaving it unattended, follow the complete [overnight local-model
