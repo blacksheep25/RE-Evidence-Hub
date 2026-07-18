@@ -16,7 +16,8 @@ name_review_queue.json
 class_registry.json
 *.log
 
-# Reverse-engineering targets and local scratch must not enter repository history.
+# Target artifacts must never be committed: the binaries being reverse-engineered
+# and any local scratch holding samples/copyrighted assets.
 *.exe
 *.dll
 *.bin
