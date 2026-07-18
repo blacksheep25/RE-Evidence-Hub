@@ -269,7 +269,11 @@ python .\binary_agent_server.py --port 5010
 
 Search misses decompiler-body text:
 
-Build `local_evidence.sqlite3` with `tools/build_local_index.py`.
+Build `local_evidence.sqlite3` with `tools/build_local_index.py`. Body search is
+substring-based, so `recv` also finds `WSARecv`. If an index built by an older
+version misses substrings, rebuild it: the index now uses a trigram tokenizer
+(one-time cost — the index is larger and slower to build than the old
+whole-token one, but this is optional derived data you can rebuild any time).
 
 Class or review routes say unavailable:
 
