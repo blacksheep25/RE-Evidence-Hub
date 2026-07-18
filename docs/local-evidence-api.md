@@ -55,10 +55,9 @@ Invoke-RestMethod http://127.0.0.1:5006/asset -Method Post -ContentType 'applica
   -Body '{"term":"login_panel.asset"}'
 ```
 
-`/semantic`, `/hybrid`, and `/ask` remain optional experimental routes. They
-load their model/vector dependencies only when called and return HTTP 503 when
-those dependencies are unavailable; they cannot prevent core static search
-from starting.
+`/semantic`, `/hybrid`, and `/ask` use the optional portable per-export semantic
+index built by `revhub semantic-index`. Dependencies still load only when those
+routes are called and return HTTP 503 when absent; core search always starts.
 
 ## Build the optional fast local index
 

@@ -98,6 +98,11 @@ class DoctorTests(unittest.TestCase):
         self.assertEqual("/some/export", fp(["--full", "/some/export"], set()))
         self.assertEqual("/some/export", fp(["--output", "out.db", "/some/export"], {"--output"}))
 
+    def test_positionals_support_two_path_delegates(self):
+        values = revhub_cli._positionals
+        self.assertEqual(["capture.jsonl"], values(["--source", "night", "capture.jsonl"], {"--source"}))
+        self.assertEqual(["export", "capture.jsonl"], values(["export", "capture.jsonl"], {"--source"}))
+
 
 if __name__ == "__main__":
     unittest.main()

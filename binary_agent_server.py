@@ -2,7 +2,7 @@
 
 The basic API has only two runtime requirements: Flask and an exported binary.
 Semantic/LLM retrieval is deliberately optional and lazy so a missing model or
-Chroma collection cannot stop direct local evidence work.
+portable semantic index cannot stop direct local evidence work.
 """
 
 from __future__ import annotations

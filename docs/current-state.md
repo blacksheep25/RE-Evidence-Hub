@@ -45,12 +45,11 @@ against every string and import.
 
 ## Supported surface vs experimental
 
-Unsupported host-side code lives under `experimental/` (semantic/vector search,
-embeddings, LLM/agent experiments, older duplicate implementations, and legacy
+Unsupported host-side code lives under `experimental/` (legacy semantic/vector
+search, LLM/agent experiments, older duplicate implementations, and legacy
 ad-hoc test scripts). See [experimental/README.md](../experimental/README.md).
-Nothing in the supported workflow imports it at import time; the only link is the
-optional semantic backend `tools/hybrid_search.py`, which imports
-`experimental.ai_tools.*` lazily.
+Nothing in the supported workflow imports it. Optional semantic retrieval now
+uses `tools/semantic_index.py` and `tools/hybrid_search.py` exclusively.
 
 The analysis/agent cluster has now been moved to `experimental/` as well
 (`analyze_binary.py`, `tool_agent.py`, `local_agent.py`, `investigation_loop.py`,
@@ -73,8 +72,11 @@ deterministic report tool (`tools/start_investigation.py` with
 `tools/investigation_memory.py`, `tools/evidence_collector.py`, and
 `tools/report_generator.py`); `tools/generate_evidence_pack.py`; the shared
 project layout (`project_layout.py`); networking reconstruction
-(`tools/network_reconstruction.py`); and isolated unattended naming
-(`tools/naming_candidates.py`).
+(`tools/network_reconstruction.py`, `tools/network_capture.py`,
+`tools/protocol_contract.py`); isolated unattended naming
+(`tools/naming_candidates.py`, `tools/autonomous_naming_runner.py`); performance
+benchmarking (`tools/benchmark_search.py`); and mutable-artifact schema tooling
+(`tools/migrate_artifacts.py`).
 
 ## Known integration gaps
 
@@ -83,23 +85,20 @@ pass.
 
 | Area | Observed behaviour | Consequence |
 | --- | --- | --- |
-| Post-processing | `post_process.py` rebuilds Markdown, `index.json`, and function summaries only. | It cannot create `ai_context.json`, which depends on a live `Program`. |
-| Chroma implementations | The normal host route now uses `host_config.py`, but the Docker-oriented `experimental/ai_tools/build_embeddings.py` still has separate `/data` settings. | The Docker helper must be deliberately aligned before it is used. |
-| Docker embedding helper | `experimental/ai_tools/build_embeddings.py` imports `USE_FUNCTION_RANKER` and `RANK_LIMIT` from the sibling `experimental/ai_tools/config.py`, which does not define them. | That helper will raise an import error when run from its own directory. (Now clearly under `experimental/`.) |
-| LLM agents | Experimental `tool_agent.py` uses the shared `LocalEvidenceStore`; the supported MCP surface adds isolated per-run proposals and progress. | Unattended output stays disposable until a separate reviewer promotes it. |
-| Packaging | Dependencies are split into `requirements-core.txt` (baseline), `requirements-optional.txt` (experimental semantic/vector), and a pinned `requirements.lock` for the baseline. | The baseline is reproducible; the optional stack remains unpinned. `samples/tiny_export` is the end-to-end fixture. |
+| Post-processing | `revhub post-process` rebuilds `ai_context.json`, Markdown, `index.json`, and function summaries from a completed export. | It does not require a live Ghidra `Program`. |
+| Legacy semantic scripts | Older vector/query modules remain under `experimental/` for reference. | Supported routes use one portable per-export index; old embedding builders delegate to it. |
+| LLM agents | The supported runner handles OpenAI-compatible and Ollama endpoints with budgets, retries, dry runs, and resumable state. | Unattended output remains disposable until separate review. |
+| Packaging | Baseline dependencies are locked; the optional semantic backend pins sentence-transformers. | `samples/tiny_export` remains the end-to-end fixture. |
 
 ## Recommended development order
 
-1. Add concurrent-writer protection for annotations and agent-run candidates.
-2. Add a reviewed runtime-capture correlation schema for networking work.
-3. Decide whether `ai_chunks.json` should be enabled by default for a target
+1. Decide whether `ai_chunks.json` should be enabled by default for a target
    export; it is wired into the pipeline but remains opt-in because it can be
    large.
-4. Choose one semantic-search implementation (local vectors or Chroma) and
-   retire or clearly isolate the other.
-5. Expand the evidence-backed agent tests around real model tool-call
-   transcripts before treating local LLM runs as a supported automated mode.
+2. Add provider-specific local-model transcript fixtures discovered during
+   real long-running sessions.
+3. Add target-specific protocol messages and recreation test vectors as each
+   reverse-engineering project confirms them.
 
 The local evidence layer exposes raw evidence plus accepted reversible
 annotations and is the preferred interactive route, whether accessed through

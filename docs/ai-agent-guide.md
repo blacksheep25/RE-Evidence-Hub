@@ -30,3 +30,8 @@ Findings should include address, name status, concrete strings/imports and
 relationships, control-flow explanation, confidence, unresolved questions,
 and exact next check. Networking work follows
 [Networking reconstruction](network-reconstruction.md).
+
+For broad networking orientation, call `binary_network_map` before tracing one
+stage. For unattended work, use a unique run id or the bounded `revhub
+overnight` runner. Semantic results remain leads and must be grounded through
+normal lookup evidence before proposing or accepting a name.

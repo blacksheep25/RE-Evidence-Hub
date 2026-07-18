@@ -80,6 +80,7 @@ class LocalEvidenceStore:
         self._class_registry_loaded = False
         self._review_queue: Optional[Dict[str, Any]] = None
         self._review_queue_loaded = False
+        self._artifact_status_cache: Dict[str, Dict[str, Any]] = {}
 
     def _require_json(self, relative_path: str) -> Any:
         path = os.path.join(self.export_path, relative_path)
@@ -145,10 +146,40 @@ class LocalEvidenceStore:
             "function_count": len(self.functions),
             "accepted_annotation_count": len(self._active_names),
             "local_fts_index": self.has_local_index,
-            "semantic_search": "optional; not loaded by the local evidence service",
+            "semantic_search": self._artifact_status(os.path.join("derived", "semantic", "metadata.json")),
+            "network_reconstruction": self._artifact_status(os.path.join("derived", "network", "network_reconstruction.json")),
+            "runtime_capture": self._artifact_status(os.path.join("derived", "network", "runtime_capture.json")),
+            "protocol_contract": self._artifact_status(os.path.join("derived", "network", "protocol_contract.json")),
             "class_registry": self._derived_status(self._classes(), "class_count"),
             "name_review_queue": self._derived_status(self._review(), "candidate_count"),
         }
+
+    def _artifact_status(self, relative_path: str) -> Dict[str, Any]:
+        cached = self._artifact_status_cache.get(relative_path)
+        if cached is not None:
+            return copy.deepcopy(cached)
+        path = os.path.join(self.export_path, relative_path)
+        if not os.path.isfile(path):
+            result = {"available": False}
+            self._artifact_status_cache[relative_path] = result
+            return copy.deepcopy(result)
+        size = os.path.getsize(path)
+        if size > 1024 * 1024:
+            result = {"available": True, "readable": None, "path": path, "size_bytes": size, "detail": "metadata not parsed in status because artifact exceeds 1 MiB"}
+            self._artifact_status_cache[relative_path] = result
+            return copy.deepcopy(result)
+        try:
+            value = _load_json(path)
+        except (OSError, ValueError):
+            result = {"available": True, "readable": False, "path": path, "size_bytes": size}
+            self._artifact_status_cache[relative_path] = result
+            return copy.deepcopy(result)
+        result = {"available": True, "readable": True, "path": path, "size_bytes": size}
+        for key in ("schema_version", "kind", "generated_utc", "updated_utc", "model", "function_count", "summary"):
+            if isinstance(value, dict) and key in value:
+                result[key] = value[key]
+        self._artifact_status_cache[relative_path] = result
+        return copy.deepcopy(result)
 
     @staticmethod
     def _derived_status(value: Optional[Dict[str, Any]], count_key: str) -> Dict[str, Any]:

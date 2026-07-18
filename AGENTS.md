@@ -30,6 +30,11 @@
 - List/select projects: `revhub projects`; `revhub use <project-name>`
 - Build networking evidence: `revhub network`
 - Start an isolated unattended pass: `revhub mcp --run-id <run-id>`
+- Run a bounded local model directly: `revhub overnight --model <model> --run-id <run-id>`
+- Import runtime network evidence: `revhub network-capture <capture.jsonl>`
+- Create/validate protocol contracts: `revhub protocol-contract`
+- Build optional semantic index: `revhub semantic-index`
+- Rebuild host-derived export context and summaries: `revhub post-process`
 
 CI covers host-side Python only. Do not import the Ghidra-side entry points,
 `exporters/`, or `util/` from host-only CI tests.
@@ -43,6 +48,8 @@ CI covers host-side Python only. Do not import the Ghidra-side entry points,
   Deleting the overlay must never change raw Ghidra output.
 - Unattended model output lives in `<export>/agent_runs/<run-id>/` and must not
   become an accepted annotation without an explicit review action.
+- Mutable derived artifacts must use `tools.file_lock.locked_file` around their
+  complete read-modify-write transaction and increment a revision when supported.
 - Repo-local exports live under `project_exports/<program-name>/` by default;
   never commit their contents. `RE_EVIDENCE_PROJECTS_ROOT` may relocate them.
 - `exporters/` and `util/` must not import host-only dependencies such as Flask,

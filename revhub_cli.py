@@ -14,6 +14,13 @@ Subcommands:
   classes ...    Build the class/vtable registry (tools/build_class_registry.py).
   review-queue . Build the name review queue (tools/build_name_review_queue.py).
   network ...    Build the networking reconstruction evidence pack.
+  overnight ...  Run a bounded local-model naming pass into isolated candidates.
+  network-capture ... Import authorised JSON/JSONL/CSV runtime observations.
+  protocol-contract ... Create or validate a reviewed network contract.
+  semantic-index ... Build the one supported portable semantic index.
+  migrate-artifacts ... Audit or migrate mutable derived-artifact schemas.
+  benchmark ...    Benchmark supported store/search latency on an export.
+  post-process ... Rebuild AI context, summaries, Markdown, and search index.
   validate ...   Validate an export (tools/validate_export.py).
 
 For the positional-path tools (index/classes/review-queue/validate), the active
@@ -56,6 +63,13 @@ DELEGATES = {
     "classes": ("tools.build_class_registry", "main", {"--output"}),
     "review-queue": ("tools.build_name_review_queue", "main", {"--output", "--limit"}),
     "network": ("tools.network_reconstruction", "main", {"--output-dir", "--limit"}),
+    "overnight": ("tools.autonomous_naming_runner", "main", {"--model", "--endpoint", "--provider", "--run-id", "--api-key", "--max-targets", "--max-minutes", "--context-chars", "--timeout", "--retries", "--temperature", "--max-tokens"}),
+    "network-capture": ("tools.network_capture", "main", {"--source", "--output"}),
+    "protocol-contract": ("tools.protocol_contract", "main", {"--output"}),
+    "semantic-index": ("tools.semantic_index", "main", {"--model", "--batch-size", "--max-chars"}),
+    "migrate-artifacts": ("tools.migrate_artifacts", "main", {"--backup-root"}),
+    "benchmark": ("tools.benchmark_search", "main", {"--query", "--repeats", "--output"}),
+    "post-process": ("post_process", "main", set()),
 }
 
 
@@ -187,6 +201,9 @@ def _export_checks(export_path, source):
         ("name review queue", "name_review_queue.json"),
         ("annotation overlay", os.path.join("annotations", "function_names.json")),
         ("network reconstruction", os.path.join("derived", "network", "network_reconstruction.json")),
+        ("runtime capture", os.path.join("derived", "network", "runtime_capture.json")),
+        ("protocol contract", os.path.join("derived", "network", "protocol_contract.json")),
+        ("semantic index", os.path.join("derived", "semantic", "metadata.json")),
     ]
     present = [label for label, rel in derived if os.path.isfile(os.path.join(export_path, rel))]
     missing = [label for label, rel in derived if not os.path.isfile(os.path.join(export_path, rel))]
@@ -224,7 +241,7 @@ def _collect_doctor(export_arg):
         ))
 
     # Optional semantic stack
-    for module, dist in (("chromadb", "chromadb"), ("sentence_transformers", "sentence-transformers")):
+    for module, dist in (("sentence_transformers", "sentence-transformers"),):
         ok, detail = _probe_import(module, dist)
         checks.append((
             module,
@@ -409,6 +426,21 @@ def _first_positional(rest, value_flags):
     return None
 
 
+def _positionals(rest, value_flags):
+    """Return all positional tokens while skipping option values."""
+
+    values = []
+    index = 0
+    while index < len(rest):
+        token = rest[index]
+        if token.startswith("-") and token != "-":
+            index += 2 if "=" not in token and token in value_flags else 1
+            continue
+        values.append(token)
+        index += 1
+    return values
+
+
 def _inject_export(rest, value_flags):
     """Prepend the active export path when no positional path was supplied."""
 
@@ -456,7 +488,11 @@ def main(argv=None):
     if command in DELEGATES:
         module_name, func_name, value_flags = DELEGATES[command]
         if value_flags is not None:
-            rest = _inject_export(rest, value_flags)
+            if command == "network-capture":
+                if len(_positionals(rest, value_flags)) < 2:
+                    rest = [host_config.resolve_export_path()] + rest
+            else:
+                rest = _inject_export(rest, value_flags)
         return _delegate(module_name, func_name, rest)
 
     print("Unknown command: {}\n".format(command), file=sys.stderr)

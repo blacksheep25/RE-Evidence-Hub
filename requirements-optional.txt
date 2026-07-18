@@ -1,15 +1,10 @@
-# Optional dependencies for the experimental semantic / vector search path.
+# Optional dependencies for the supported portable semantic index.
 #
-# These are NOT required for the supported evidence workflow. They are imported
-# only by helpers under experimental/ and by the remaining optional
-# semantic/vector agent modules documented in docs/current-state.md.
+# These are not required for raw evidence, HTTP/MCP core routes, or reports.
 # Semantic/vector/LLM routes are treated as leads only.
 #
 # Warning: sentence-transformers pulls in PyTorch, which is a large download.
 # Install these only if you actually intend to build embeddings or run the
 # semantic endpoints. See docs/current-state.md for the state of this path.
 #
-# Left unpinned intentionally: this stack is experimental and not part of the
-# reproducible baseline captured in requirements.lock.
-chromadb
-sentence-transformers
+sentence-transformers==5.6.0

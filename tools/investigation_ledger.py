@@ -22,6 +22,8 @@ import os
 import tempfile
 from typing import Any, Dict, List, Optional
 
+from tools.file_lock import locked_file
+
 
 LEDGER_NAME = "investigation_progress.json"
 SCHEMA_VERSION = 1
@@ -67,7 +69,7 @@ def load(export_path: str, run_id: Optional[str] = None) -> Dict[str, Any]:
             # without atomic replace) must not brick the run: fall through to a
             # fresh ledger, which the next record() call persists over it.
             pass
-    return {"schema_version": SCHEMA_VERSION, "created_utc": _utc_now(), "entries": {}}
+    return {"schema_version": SCHEMA_VERSION, "created_utc": _utc_now(), "revision": 0, "entries": {}}
 
 
 def _atomic_save(export_path: str, data: Dict[str, Any], run_id: Optional[str] = None) -> None:
@@ -99,14 +101,16 @@ def record(export_path: str, address: str, status: str, note: str = "", run_id: 
     """Record a terminal/deferred outcome for one target and persist atomically."""
     if status not in STATUSES:
         raise ValueError("Invalid status: {} (expected one of {})".format(status, STATUSES))
-    data = load(export_path, run_id)
-    entry = data["entries"].get(address, {"attempts": 0})
-    entry["status"] = status
-    entry["note"] = note or ""
-    entry["attempts"] = int(entry.get("attempts", 0)) + 1
-    entry["updated_utc"] = _utc_now()
-    data["entries"][address] = entry
-    _atomic_save(export_path, data, run_id)
+    with locked_file(ledger_path(export_path, run_id)):
+        data = load(export_path, run_id)
+        entry = data["entries"].get(address, {"attempts": 0})
+        entry["status"] = status
+        entry["note"] = note or ""
+        entry["attempts"] = int(entry.get("attempts", 0)) + 1
+        entry["updated_utc"] = _utc_now()
+        data["entries"][address] = entry
+        data["revision"] = int(data.get("revision", 0)) + 1
+        _atomic_save(export_path, data, run_id)
     return {"address": address, "status": status, "attempts": entry["attempts"]}
 
 

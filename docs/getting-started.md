@@ -11,7 +11,7 @@ python -m venv .venv
 revhub doctor
 ```
 
-`requirements-core.txt` is the small unpinned baseline. The lock file is reproducible. `requirements-optional.txt` is experimental semantic search and is unnecessary for export, validation, HTTP, MCP, or direct queries.
+`requirements-core.txt` is the small unpinned baseline. The lock file is reproducible. `requirements-optional.txt` provides the supported optional semantic index and is unnecessary for export, validation, HTTP, MCP, or direct queries.
 
 Try the checked-in fixture without Ghidra:
 
@@ -86,12 +86,28 @@ revhub index
 revhub classes
 revhub review-queue --limit 250
 revhub network
+revhub benchmark --query send --query packet
+```
+
+To rebuild the export's AI context, Markdown, summaries, and search index later
+without reopening Ghidra:
+
+```powershell
+revhub post-process
 ```
 
 - `local_evidence.sqlite3`: substring decompiler-body search.
 - `class_registry.json`: conservative class/vtable context.
 - `name_review_queue.json`: non-promoting heuristic leads.
 - `derived/network/`: networking lifecycle, leads, and unknowns.
+
+For authorised runtime traffic and recreation contracts:
+
+```powershell
+revhub network-capture .\capture.jsonl --source 'authorised test session'
+revhub protocol-contract
+revhub protocol-contract --validate
+```
 
 Restart HTTP/MCP after rebuilding derived artifacts. For annotation changes, HTTP `/reload` is enough.
 
@@ -116,6 +132,20 @@ revhub mcp --run-id investigation-01
 ```
 
 Interactive reviewers may use `binary_annotate`. Unattended models use `binary_propose_name`, writing only to `agent_runs/<run-id>/`. Review later with `binary_candidate_queue` and `binary_review_candidate`. See [AI agent guide](ai-agent-guide.md) and [Overnight naming](autonomous-agent.md).
+
+Or drive a local OpenAI-compatible/Ollama model directly:
+
+```powershell
+revhub overnight --model qwen3-coder:30b --run-id investigation-01 --dry-run
+```
+
+Optional semantic search now uses one portable per-export backend:
+
+```powershell
+python -m pip install -e '.[semantic]'
+revhub semantic-index
+revhub query semantic 'packet dispatch' --limit 10
+```
 
 ## Troubleshooting
 
