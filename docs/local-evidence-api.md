@@ -13,14 +13,14 @@ a background server or port.
 ## Start the HTTP API
 
 ```powershell
-python .\binary_agent_server.py --export %USERPROFILE%\ghidra_ai_exports\sample_program.exe --port 5006
+python .\binary_agent_server.py --export .\project_exports\sample_program.exe --port 5006
 ```
 
 The service binds to `127.0.0.1:5006` by default. You can use command-line
 flags or environment variables:
 
 ```powershell
-$env:GHIDRA_AI_EXPORT_PATH = '%USERPROFILE%\ghidra_ai_exports\sample_program.exe'
+$env:GHIDRA_AI_EXPORT_PATH = '.\project_exports\sample_program.exe'
 $env:GHIDRA_AI_API_PORT = '5006'
 python .\binary_agent_server.py
 ```
@@ -28,7 +28,7 @@ python .\binary_agent_server.py
 Command-line flags take the same role:
 
 ```powershell
-python .\binary_agent_server.py --export %USERPROFILE%\ghidra_ai_exports\sample_program.exe --host 127.0.0.1 --port 5006
+python .\binary_agent_server.py --export .\project_exports\sample_program.exe --host 127.0.0.1 --port 5006
 ```
 
 Core routes are dependency-free apart from Flask:
@@ -66,7 +66,7 @@ The core service works immediately from `index.json`. Build this derived FTS5
 index when searching decompiler bodies frequently:
 
 ```powershell
-python .\tools\build_local_index.py %USERPROFILE%\ghidra_ai_exports\sample_program.exe
+revhub index
 ```
 
 It creates `<export>\local_evidence.sqlite3`. Delete and rebuild it whenever
@@ -79,8 +79,8 @@ These two derived artifacts make repeated work faster without smuggling an
 inference into the active symbol set:
 
 ```powershell
-python .\tools\build_class_registry.py %USERPROFILE%\ghidra_ai_exports\sample_program.exe
-python .\tools\build_name_review_queue.py %USERPROFILE%\ghidra_ai_exports\sample_program.exe --limit 250
+revhub classes
+revhub review-queue --limit 250
 ```
 
 `class_registry.json` groups accepted `C..._Method` annotations with exported
@@ -110,7 +110,7 @@ one reviewable file without changing raw exports:
 
 ```powershell
 python .\tools\generate_evidence_pack.py 'Title Login and Server Select' `
-  --export %USERPROFILE%\ghidra_ai_exports\sample_program.exe `
+  --export .\project_exports\sample_program.exe `
   --control LOGIN_BUTTON --control SERVER_LIST `
   --asset login_panel.asset --asset server_panel.asset `
   --function UI_ApplyLoginAndServerLayout
@@ -125,7 +125,7 @@ the pack rather than editing it manually.
 The dependency-free stdio adapter exposes read-only tools to an MCP client:
 
 ```powershell
-python .\binary_agent_mcp_server.py --export %USERPROFILE%\ghidra_ai_exports\sample_program.exe
+python .\binary_agent_mcp_server.py --export .\project_exports\sample_program.exe --run-id interactive-review
 ```
 
 Tools are `binary_status`, `binary_search`, `binary_lookup`,
@@ -141,7 +141,7 @@ For Python scripts running in this repository, prefer the in-process adapter:
 ```python
 from tools.evidence_tools import EvidenceTools
 
-tools = EvidenceTools(r"%USERPROFILE%\ghidra_ai_exports\sample_program.exe")
+tools = EvidenceTools(r".\project_exports\sample_program.exe")
 result = tools.execute_tool("lookup", {"address": "00401000", "include_decompiler": False})
 ```
 
@@ -152,9 +152,9 @@ call an already-running HTTP server.
 The same module also has a direct CLI for one-off shell queries:
 
 ```powershell
-python .\tools\evidence_tools.py --export %USERPROFILE%\ghidra_ai_exports\sample_program.exe status
-python .\tools\evidence_tools.py --export %USERPROFILE%\ghidra_ai_exports\sample_program.exe search sendto --limit 5
-python .\tools\evidence_tools.py --export %USERPROFILE%\ghidra_ai_exports\sample_program.exe lookup 0047c870 --no-decompiler --assembly
+revhub query status
+revhub query search sendto --limit 5
+revhub query lookup 0047c870 --no-decompiler --assembly
 ```
 
 ## Annotation refresh and export refresh

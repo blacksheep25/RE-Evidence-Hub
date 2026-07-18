@@ -6,12 +6,14 @@ Subcommands:
 
   doctor         Preflight check of the host environment and active export.
   use            Show, set, or clear the "current export" pointer.
+  projects       List repo-local project exports and show the active project.
   query ...      Query the active export (delegates to tools/evidence_tools.py).
   serve ...      Start the HTTP evidence API (binary_agent_server.py).
   mcp ...        Start the stdio MCP adapter (binary_agent_mcp_server.py).
   index ...      Build the FTS body index (tools/build_local_index.py).
   classes ...    Build the class/vtable registry (tools/build_class_registry.py).
   review-queue . Build the name review queue (tools/build_name_review_queue.py).
+  network ...    Build the networking reconstruction evidence pack.
   validate ...   Validate an export (tools/validate_export.py).
 
 For the positional-path tools (index/classes/review-queue/validate), the active
@@ -38,6 +40,7 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 import host_config
+from project_layout import discover_projects, projects_root
 
 
 # Subcommand -> (module, function, value_flags).
@@ -52,6 +55,7 @@ DELEGATES = {
     "index": ("tools.build_local_index", "main", {"--output"}),
     "classes": ("tools.build_class_registry", "main", {"--output"}),
     "review-queue": ("tools.build_name_review_queue", "main", {"--output", "--limit"}),
+    "network": ("tools.network_reconstruction", "main", {"--output-dir", "--limit"}),
 }
 
 
@@ -182,6 +186,7 @@ def _export_checks(export_path, source):
         ("class registry", "class_registry.json"),
         ("name review queue", "name_review_queue.json"),
         ("annotation overlay", os.path.join("annotations", "function_names.json")),
+        ("network reconstruction", os.path.join("derived", "network", "network_reconstruction.json")),
     ]
     present = [label for label, rel in derived if os.path.isfile(os.path.join(export_path, rel))]
     missing = [label for label, rel in derived if not os.path.isfile(os.path.join(export_path, rel))]
@@ -200,6 +205,8 @@ def _collect_doctor(export_arg):
     """Return (checks, categories) where checks is a list of (name, status, detail, category)."""
 
     checks = []
+
+    checks.append(("projects root", INFO, projects_root(), "export"))
 
     # Python
     version = "{}.{}.{}".format(*sys.version_info[:3])
@@ -332,7 +339,7 @@ def use(argv=None):
         prog="revhub use",
         description="Show, set, or clear the current-export pointer.",
     )
-    parser.add_argument("path", nargs="?", help="Export folder to make current. Omit to show the current one.")
+    parser.add_argument("path", nargs="?", help="Project name or export folder to make current. Omit to show the current one.")
     parser.add_argument("--clear", action="store_true", help="Clear the pointer instead of setting it.")
     args = parser.parse_args(argv)
 
@@ -351,6 +358,29 @@ def use(argv=None):
     path, source = host_config.resolve_export_source()
     print("Current export: {}  [{}]".format(path, source))
     print("Pointer file:   {}".format(host_config.pointer_file()))
+    return 0
+
+
+def projects(argv=None):
+    parser = argparse.ArgumentParser(
+        prog="revhub projects",
+        description="List valid project exports under the configured projects root.",
+    )
+    parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON.")
+    args = parser.parse_args(argv)
+    active = os.path.abspath(host_config.resolve_export_path())
+    items = discover_projects()
+    for item in items:
+        item["active"] = os.path.abspath(item["path"]) == active
+    if args.json:
+        print(json.dumps({"projects_root": projects_root(), "projects": items}, indent=2))
+    else:
+        print("Projects root: " + projects_root())
+        if not items:
+            print("  No complete exports found yet.")
+        for item in items:
+            print("  {} {}".format("*" if item["active"] else " ", item["name"]))
+        print("\nUse one with: revhub use <project-name>")
     return 0
 
 
@@ -419,6 +449,8 @@ def main(argv=None):
         return doctor(rest)
     if command == "use":
         return use(rest)
+    if command == "projects":
+        return projects(rest)
     if command == "validate":
         return _delegate_validate(_inject_export(rest, set()))
     if command in DELEGATES:

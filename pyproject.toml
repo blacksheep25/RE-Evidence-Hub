@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "re-evidence-hub"
 version = "0.1.0"
-description = "Ghidra AI Exporter — portable binary evidence with local query, HTTP/MCP APIs, and a reversible annotation overlay."
+description = "RE-Evidence-Hub — portable binary evidence, local query APIs, networking reconstruction, and reviewed AI workflows."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "See repository" }
@@ -38,6 +38,7 @@ py-modules = [
     "binary_agent_server",
     "binary_agent_mcp_server",
     "host_config",
+    "project_layout",
 ]
 
 [tool.setuptools.packages.find]

@@ -26,7 +26,8 @@ except ImportError:  # Support running scripts from inside the tools directory.
 try:
     from host_config import DEFAULT_EXPORT_PATH
 except ImportError:
-    DEFAULT_EXPORT_PATH = os.path.expanduser("~/ghidra_ai_exports/sample_program.exe")
+    from project_layout import project_export_path
+    DEFAULT_EXPORT_PATH = project_export_path("sample_program.exe")
 
 
 class EvidenceTools:

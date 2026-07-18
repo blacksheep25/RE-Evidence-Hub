@@ -13,8 +13,9 @@ Controls:
 
 
 import os
+from project_layout import projects_root, safe_project_name
 
-OUTPUT_PATH = r"%USERPROFILE%\ghidra_ai_exports\sample_program.exe"
+OUTPUT_PATH = projects_root()
 
 class Config(object):
 
@@ -41,9 +42,7 @@ class Config(object):
 
         self.output_root = (
 
-            os.path.expanduser(
-                "~/ghidra_ai_exports"
-            )
+            projects_root()
 
         )
 
@@ -142,11 +141,7 @@ class Config(object):
 
         safe_name = (
 
-            name
-            .replace(
-                " ",
-                "_"
-            )
+            safe_project_name(name)
 
         )
 

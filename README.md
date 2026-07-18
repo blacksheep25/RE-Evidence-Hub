@@ -1,6 +1,6 @@
-# Ghidra AI Exporter
+# RE-Evidence-Hub
 
-Ghidra AI Exporter turns an opened Ghidra program into a portable evidence
+RE-Evidence-Hub turns an opened Ghidra program into a portable evidence
 folder that humans, scripts, and AI tools can query without keeping Ghidra
 open.
 
@@ -46,7 +46,8 @@ flowchart LR
     F --> I["Python agents and scripts"]
 ```
 
-The raw export is the durable record. Derived files can be rebuilt. Accepted
+Exports are kept under `project_exports/<program-name>/` by default. The raw
+export is the durable record. Derived files can be rebuilt. Accepted
 function-name annotations live in `<export>\annotations\` and can be deleted
 without changing raw Ghidra output.
 
@@ -57,13 +58,13 @@ without changing raw Ghidra output.
 3. Validate the export:
 
 ```powershell
-python .\tools\validate_export.py %USERPROFILE%\ghidra_ai_exports\sample_program.exe --full
+python .\tools\validate_export.py .\project_exports\sample_program.exe --full
 ```
 
 4. Start the local evidence API:
 
 ```powershell
-python .\binary_agent_server.py --export %USERPROFILE%\ghidra_ai_exports\sample_program.exe
+python .\binary_agent_server.py --export .\project_exports\sample_program.exe
 ```
 
 5. Check the server and search:
@@ -96,16 +97,19 @@ That adds console commands backed by the same code (`revhub`, plus
 | --- | --- |
 | `revhub doctor` | Preflight: Python, baseline deps, headless prerequisites, and the active export. |
 | `revhub use <export>` | Remember an export as the default so you can drop `--export`. |
+| `revhub projects` | List complete repo-local project exports and the active one. |
 | `revhub query <cmd>` | Query the active export (same as `tools/evidence_tools.py`). |
 | `revhub serve` / `revhub mcp` | Start the HTTP API / stdio MCP adapter. |
 | `revhub validate` | Validate the active export. |
 | `revhub index` / `classes` / `review-queue` | Build derived indexes for the active export. |
+| `revhub network` | Build the static networking reconstruction evidence pack. |
 
 **Current export pointer.** `revhub use <export>` saves a pointer so every
 command defaults to that export instead of repeating a long `--export` path:
 
 ```powershell
-revhub use %USERPROFILE%\ghidra_ai_exports\sample_program.exe
+revhub projects
+revhub use sample_program.exe    # project name or an explicit export path
 revhub query status            # no --export needed
 revhub query lookup 00401000
 revhub use --clear             # forget it
@@ -141,6 +145,8 @@ revhub doctor --json     # machine-readable
 | Build class/vtable review context | `tools/build_class_registry.py <export>` |
 | Build low-confidence naming prompts | `tools/build_name_review_queue.py <export>` |
 | Generate broad deterministic reports | `tools/start_investigation.py <export>` |
+| Map networking lifecycle and reconstruction gaps | `revhub network` |
+| Stage disposable overnight naming candidates | `revhub mcp --run-id <run-id>` |
 
 ## Important Concepts
 
@@ -180,7 +186,7 @@ raw export files plus accepted annotations. It does not require Ghidra,
 embeddings, Chroma, or an LLM for core routes.
 
 ```powershell
-python .\binary_agent_server.py --export %USERPROFILE%\ghidra_ai_exports\sample_program.exe --port 5006
+revhub serve --port 5006
 ```
 
 Useful routes:
@@ -204,9 +210,9 @@ For one-off shell queries where you do not want to start the HTTP server, use
 the in-process evidence CLI:
 
 ```powershell
-python .\tools\evidence_tools.py --export %USERPROFILE%\ghidra_ai_exports\sample_program.exe status
-python .\tools\evidence_tools.py --export %USERPROFILE%\ghidra_ai_exports\sample_program.exe search sendto --limit 5
-python .\tools\evidence_tools.py --export %USERPROFILE%\ghidra_ai_exports\sample_program.exe lookup 0047c870 --no-decompiler --assembly
+revhub query status
+revhub query search sendto --limit 5
+revhub query lookup 0047c870 --no-decompiler --assembly
 ```
 
 It uses the same `LocalEvidenceStore` core as HTTP/MCP and prints JSON.
@@ -224,8 +230,9 @@ AI should use this project as an evidence retriever, not as an oracle.
   so later sessions do not need to rediscover them.
 - For unattended, resumable runs (an MCP client naming functions overnight), see
   [Autonomous investigation over MCP](docs/autonomous-agent.md): the MCP server's
-  `binary_next_target` / `binary_annotate` (guarded write) / `binary_progress`
-  tools turn the export into durable, compaction-safe agent memory.
+  `binary_next_target` / `binary_propose_name` / `binary_progress` tools stage
+  disposable candidates under one run id. A stronger reviewer later uses
+  `binary_review_candidate`; unattended output is never active automatically.
 
 ## Project Layout
 
@@ -238,6 +245,9 @@ AI should use this project as an evidence retriever, not as an oracle.
 | `binary_agent_server.py` | Flask HTTP adapter over the local evidence store. |
 | `binary_agent_mcp_server.py` | Dependency-light stdio MCP adapter over the same evidence store. |
 | `tools/local_evidence.py` | Core read-only query engine for one export. |
+| `project_exports/` | Ignored, repo-local per-project workspaces (configurable with `RE_EVIDENCE_PROJECTS_ROOT`). |
+| `tools/network_reconstruction.py` | Deterministic static networking evidence pack and gap checklist. |
+| `tools/naming_candidates.py` | Isolated model proposals and explicit review/promotion. |
 | `tools/evidence_tools.py` | In-process AI/script adapter and CLI over `LocalEvidenceStore`. |
 | `tools/evidence_client.py` | Small HTTP client for the running API. |
 | `tools/` | The supported evidence surface: validation, derived indexes, reports, annotations, and the read-only query core. |
@@ -262,3 +272,13 @@ python -m unittest discover -s tests
 
 - The state of supported vs experimental host tools is tracked in
   [Current development state](docs/current-state.md).
+
+## Documentation map
+
+- [Getting started](docs/getting-started.md): first export through first query.
+- [Projects and exports](docs/projects-and-exports.md): layout, selection, backup, and relocation.
+- [Networking reconstruction](docs/network-reconstruction.md): static evidence pack and recreation workflow.
+- [AI agent guide](docs/ai-agent-guide.md): evidence rules and bounded tool usage.
+- [Overnight naming](docs/autonomous-agent.md): isolated local-model pass and later review.
+- [Architecture](docs/architecture.md): runtime boundaries and data contracts.
+- [Audit and roadmap](docs/project-audit-and-roadmap.md): findings, completed improvements, and backlog.

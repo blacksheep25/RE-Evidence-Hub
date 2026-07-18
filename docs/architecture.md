@@ -22,6 +22,18 @@ Do not cross these boundaries casually: the exporter imports Ghidra Java APIs,
 while host search and agent code imports packages such as Chroma, NumPy,
 `sentence-transformers`, Flask, and Requests.
 
+### Project workspace boundary
+
+`project_layout.py` is dependency-free and shared by PyGhidra and host Python.
+The default root is `project_exports/`, with one manifest-bearing directory per
+program. `RE_EVIDENCE_PROJECTS_ROOT` relocates it; explicit paths and the saved
+current-export pointer remain compatible.
+
+Inside one export, raw evidence is immutable, `derived/` is rebuildable,
+`annotations/` contains reviewed reversible conclusions, and
+`agent_runs/<run-id>/` contains disposable autonomous work. Promotion from an
+agent run to annotations requires explicit review.
+
 ## Core pipeline
 
 `ExportPipeline.run()` executes the following stages in this order.  Each stage

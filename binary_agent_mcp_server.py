@@ -4,6 +4,8 @@ Run this process from an MCP-capable client. Most tools are read-only, evidence-
 backed retrieval. The exceptions support autonomous, resumable investigation and
 never touch the Ghidra database or the raw export files:
 
+- ``binary_propose_name`` records unattended output only in an isolated run.
+- ``binary_review_candidate`` explicitly promotes or rejects a proposal.
 - ``binary_annotate`` records a confirmed name only in the reversible annotation
   overlay (``annotations/``), and only after the cited evidence is verified to
   appear in that function's own bundle.
@@ -32,9 +34,11 @@ from tools.local_evidence import EvidenceError, LocalEvidenceStore
 from tools.function_annotations import annotate
 from tools.agent_evidence import validate_annotation_proposal, verify_evidence_refs
 from tools import investigation_ledger as ledger
+from tools import naming_candidates
+from tools.network_reconstruction import build_report as build_network_report
 
 
-SERVER_INFO = {"name": "binary-local-evidence", "version": "1.1.0"}
+SERVER_INFO = {"name": "binary-local-evidence", "version": "1.2.0"}
 
 TOOLS = [
     {
@@ -95,9 +99,51 @@ TOOLS = [
         "inputSchema": {"type": "object", "properties": {}},
     },
     {
+        "name": "binary_propose_name",
+        "description": (
+            "Record a grounded function-name CANDIDATE in this agent run only. "
+            "It does not change active_name or accepted annotations. Use this for unattended/local-model work."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "address": {"type": "string"},
+                "name": {"type": "string", "minLength": 1},
+                "confidence": {"type": "string", "enum": ["medium", "high"]},
+                "evidence": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+                "evidence_refs": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+                "rationale": {"type": "string", "minLength": 12},
+            },
+            "required": ["address", "name", "confidence", "evidence", "evidence_refs", "rationale"],
+        },
+    },
+    {
+        "name": "binary_network_map",
+        "description": "Build a read-only static networking lifecycle map with API evidence, candidate functions, leads, and unresolved reconstruction contracts.",
+        "inputSchema": {"type": "object", "properties": {"limit": {"type": "integer", "minimum": 1, "maximum": 500}}},
+    },
+    {
+        "name": "binary_candidate_queue",
+        "description": "List naming candidates in this isolated agent run; defaults to pending candidates.",
+        "inputSchema": {"type": "object", "properties": {"status": {"type": "string", "enum": ["pending", "accepted", "rejected", "all"]}}},
+    },
+    {
+        "name": "binary_review_candidate",
+        "description": "Reviewer-only: accept a pending candidate into the reversible annotation overlay, or reject it.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "address": {"type": "string"},
+                "action": {"type": "string", "enum": ["accept", "reject"]},
+                "note": {"type": "string"},
+            },
+            "required": ["address", "action"],
+        },
+    },
+    {
         "name": "binary_annotate",
         "description": (
-            "Record a confirmed, evidence-backed function name in the reversible overlay (the only WRITE tool). "
+            "Reviewer-only: record a confirmed, evidence-backed function name in the reversible overlay. "
             "Every evidence_ref must be grounded in this function's own imports, strings, or named relationships. "
             "Acceptance also requires a valid symbol, medium/high confidence, evidence, rationale, and either a name-linked ref "
             "or two independent refs. "
@@ -146,6 +192,12 @@ def tool_result(value, failed=False):
     }
 
 
+def _run_id(store):
+    """Return the isolated MCP run id, including for in-process adapters."""
+
+    return getattr(store, "agent_run_id", "overnight") or "overnight"
+
+
 def _annotate_guarded(store, arguments):
     """Verify the model's cited evidence against the function, then record it.
 
@@ -165,7 +217,7 @@ def _annotate_guarded(store, arguments):
             else "cited evidence_refs are not import names, string values, or callee names of this function"
         )
         # Count the failed attempt so a target that never grounds is retired.
-        ledger.record(store.export_path, resolved, "deferred", note=reason)
+        ledger.record(store.export_path, resolved, "deferred", note=reason, run_id=_run_id(store))
         return {
             "accepted": False,
             "address": resolved,
@@ -181,7 +233,7 @@ def _annotate_guarded(store, arguments):
         refs,
     )
     if not policy_ok:
-        ledger.record(store.export_path, resolved, "deferred", note=reason)
+        ledger.record(store.export_path, resolved, "deferred", note=reason, run_id=_run_id(store))
         return {
             "accepted": False,
             "address": resolved,
@@ -201,17 +253,45 @@ def _annotate_guarded(store, arguments):
     )
     # Make the new name visible to this same session, then record progress.
     store.reload_annotations()
-    ledger.record(store.export_path, result["address"], "done", note="annotated as {}".format(result["name"]))
+    ledger.record(store.export_path, result["address"], "done", note="annotated as {}".format(result["name"]), run_id=_run_id(store))
     return {"accepted": True, **result}
+
+
+def _propose_guarded(store, arguments):
+    refs = arguments.get("evidence_refs", []) or []
+    lookup = store.lookup(arguments.get("address", ""), include_decompiler=True, include_assembly=True)
+    resolved = lookup.get("function", {}).get("address", arguments.get("address", ""))
+    ok, missing = verify_evidence_refs(lookup, refs)
+    if not ok:
+        reason = "cited evidence_refs are not grounded in this function"
+        ledger.record(store.export_path, resolved, "deferred", note=reason, run_id=_run_id(store))
+        return {"accepted": False, "address": resolved, "reason": reason, "missing_refs": missing}
+    policy_ok, reason = validate_annotation_proposal(
+        arguments.get("name", ""), arguments.get("confidence", ""),
+        arguments.get("evidence", []) or [], arguments.get("rationale", ""), refs,
+    )
+    if not policy_ok:
+        ledger.record(store.export_path, resolved, "deferred", note=reason, run_id=_run_id(store))
+        return {"accepted": False, "address": resolved, "reason": reason, "missing_refs": []}
+    result = naming_candidates.propose(store.export_path, _run_id(store), lookup, arguments)
+    ledger.record(store.export_path, resolved, "done", note="proposed {}".format(result["proposed_name"]), run_id=_run_id(store))
+    return {"accepted": True, "promoted": False, **result}
 
 
 def call_tool(store, name, arguments):
     if name == "binary_status":
-        return dict(store.status(), progress=ledger.summary(store, store.export_path))
+        return dict(store.status(), agent_run_id=_run_id(store), progress=ledger.summary(store, store.export_path, _run_id(store)))
+    if name == "binary_propose_name":
+        return _propose_guarded(store, arguments)
+    if name == "binary_candidate_queue":
+        status = arguments.get("status", "pending")
+        return naming_candidates.queue(store.export_path, _run_id(store), "" if status == "all" else status)
+    if name == "binary_review_candidate":
+        return naming_candidates.review(store, _run_id(store), arguments.get("address", ""), arguments.get("action", ""), arguments.get("note", ""))
     if name == "binary_annotate":
         return _annotate_guarded(store, arguments)
     if name == "binary_next_target":
-        target = ledger.next_target(store, store.export_path)
+        target = ledger.next_target(store, store.export_path, run_id=_run_id(store))
         return target if target is not None else {"exhausted": True}
     if name == "binary_progress":
         recorded = None
@@ -219,8 +299,8 @@ def call_tool(store, name, arguments):
             # Canonicalize (and validate) so the ledger key matches the frontier;
             # an unknown address raises EvidenceError -> surfaced as a tool error.
             resolved = store.resolve_address(arguments["address"])
-            recorded = ledger.record(store.export_path, resolved, arguments["status"], arguments.get("note", ""))
-        return {"recorded": recorded, "summary": ledger.summary(store, store.export_path)}
+            recorded = ledger.record(store.export_path, resolved, arguments["status"], arguments.get("note", ""), run_id=_run_id(store))
+        return {"recorded": recorded, "summary": ledger.summary(store, store.export_path, _run_id(store))}
     if name == "binary_search":
         return store.search(arguments.get("query", ""), arguments.get("limit", 20))
     if name == "binary_lookup":
@@ -235,6 +315,8 @@ def call_tool(store, name, arguments):
         return store.trace(arguments.get("term", ""), "control", arguments.get("limit", 20))
     if name == "binary_trace_packet":
         return store.trace(arguments.get("term", ""), "packet-candidate", arguments.get("limit", 20))
+    if name == "binary_network_map":
+        return build_network_report(store.export_path, max(1, min(int(arguments.get("limit", 100)), 500)))
     if name == "binary_class":
         return store.class_info(arguments.get("query", ""), arguments.get("limit", 20))
     if name == "binary_review_queue":
@@ -275,9 +357,11 @@ def handle(store, message):
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Serve a Ghidra export through local evidence MCP tools.")
     parser.add_argument("--export", dest="export_path", default=DEFAULT_EXPORT_PATH)
+    parser.add_argument("--run-id", default=os.environ.get("RE_EVIDENCE_AGENT_RUN", "overnight"), help="Isolated agent run under <export>/agent_runs (default: overnight).")
     args = parser.parse_args(argv)
     try:
         store = LocalEvidenceStore(args.export_path)
+        store.agent_run_id = args.run_id
     except (EvidenceError, OSError, ValueError) as exc:
         print("[ERROR] {}".format(exc), file=sys.stderr)
         return 1

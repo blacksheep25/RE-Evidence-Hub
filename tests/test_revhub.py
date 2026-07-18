@@ -11,6 +11,7 @@ import unittest
 
 import host_config
 import revhub_cli
+from project_layout import project_export_path, safe_project_name
 
 
 class ExportPrecedenceTests(unittest.TestCase):
@@ -32,6 +33,11 @@ class ExportPrecedenceTests(unittest.TestCase):
         path, source = host_config.resolve_export_source()
         self.assertEqual("built-in default", source)
         self.assertTrue(path.endswith("sample_program.exe"))
+        self.assertIn("project_exports", path)
+
+    def test_project_layout_sanitizes_names_and_stays_repo_local(self):
+        self.assertEqual("My_Client_.exe", safe_project_name('My Client?.exe'))
+        self.assertTrue(project_export_path("client.exe").endswith(os.path.join("project_exports", "client.exe")))
 
     def test_pointer_beats_default(self):
         host_config.write_current_export("/tmp/example-export")

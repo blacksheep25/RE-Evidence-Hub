@@ -107,10 +107,66 @@ class AgentMcpTests(unittest.TestCase):
         result = mcp.handle(self.store, {"jsonrpc": "2.0", "id": 0, "method": "tools/list"})["result"]
         tools = {t["name"]: t for t in result["tools"]}
         names = set(tools)
-        self.assertTrue({"binary_annotate", "binary_next_target", "binary_progress"} <= names)
+        self.assertTrue({"binary_annotate", "binary_propose_name", "binary_candidate_queue", "binary_review_candidate", "binary_next_target", "binary_progress", "binary_network_map"} <= names)
         schema = tools["binary_annotate"]["inputSchema"]
         self.assertEqual(["medium", "high"], schema["properties"]["confidence"]["enum"])
         self.assertTrue({"evidence", "rationale", "evidence_refs"} <= set(schema["required"]))
+
+    def test_network_map_is_available_to_agents_without_writing(self):
+        payload, failed = _call(self.store, "binary_network_map", {"limit": 25})
+        self.assertFalse(failed)
+        self.assertTrue(payload["stages"]["send"]["observed"])
+        self.assertFalse(os.path.exists(os.path.join(self.temporary.name, "derived")))
+
+    def test_unattended_candidate_is_isolated_until_reviewed(self):
+        self.store.agent_run_id = "night-01"
+        payload, failed = _call(self.store, "binary_propose_name", {
+            "address": "00402000", "name": "Net_Send", "confidence": "high",
+            "evidence": ["Calls the send import"], "evidence_refs": ["send"],
+            "rationale": "The direct send import establishes network transmit behavior.",
+        })
+        self.assertFalse(failed)
+        self.assertTrue(payload["accepted"])
+        self.assertFalse(payload["promoted"])
+        self.assertIsNone(self.store.lookup("00402000", include_decompiler=False)["function"]["active_name"])
+        self.assertFalse(os.path.exists(os.path.join(self.temporary.name, "annotations", "function_names.json")))
+        self.assertTrue(os.path.isfile(os.path.join(self.temporary.name, "agent_runs", "night-01", "name_candidates.json")))
+
+        queue, _ = _call(self.store, "binary_candidate_queue")
+        self.assertEqual(1, queue["count"])
+        reviewed, _ = _call(self.store, "binary_review_candidate", {
+            "address": "00402000", "action": "accept", "note": "verified by stronger model",
+        })
+        self.assertEqual("accepted", reviewed["candidate_status"])
+        self.assertEqual("Net_Send", self.store.lookup("00402000", include_decompiler=False)["function"]["active_name"])
+
+    def test_candidate_rejection_never_promotes(self):
+        self.store.agent_run_id = "night-reject"
+        _call(self.store, "binary_propose_name", {
+            "address": "00402000", "name": "Net_Send", "confidence": "medium",
+            "evidence": ["Calls the send import"], "evidence_refs": ["send"],
+            "rationale": "The send import supports a transmit-related candidate.",
+        })
+        reviewed, _ = _call(self.store, "binary_review_candidate", {"address": "00402000", "action": "reject"})
+        self.assertEqual("rejected", reviewed["candidate_status"])
+        self.assertIsNone(self.store.lookup("00402000", include_decompiler=False)["function"]["active_name"])
+
+    def test_tampered_candidate_is_revalidated_at_review(self):
+        self.store.agent_run_id = "night-tamper"
+        _call(self.store, "binary_propose_name", {
+            "address": "00402000", "name": "Net_Send", "confidence": "medium",
+            "evidence": ["Calls send"], "evidence_refs": ["send"],
+            "rationale": "The send import supports the proposed transmit behavior.",
+        })
+        path = os.path.join(self.temporary.name, "agent_runs", "night-tamper", "name_candidates.json")
+        with open(path, encoding="utf-8") as handle:
+            data = json.load(handle)
+        data["entries"]["00402000"]["proposed_name"] = "DeleteAccount"
+        _write(path, data)
+        payload, failed = _call(self.store, "binary_review_candidate", {"address": "00402000", "action": "accept"})
+        self.assertTrue(failed)
+        self.assertIn("review policy", payload["error"])
+        self.assertIsNone(self.store.lookup("00402000", include_decompiler=False)["function"]["active_name"])
 
     def test_guarded_annotate_accepts_grounded_evidence_and_persists(self):
         payload, _ = _call(self.store, "binary_annotate", {

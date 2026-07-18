@@ -2,7 +2,7 @@
 
 This document distinguishes the coherent export path from the experimental
 host-side code. It is an evidence-based snapshot of the repository on
-14-07-2026, not a promise that every script forms one supported workflow.
+18-07-2026, not a promise that every script forms one supported workflow.
 
 ## Supported baseline
 
@@ -71,7 +71,10 @@ the validation, derived-index, and annotation tools (`tools/validate_export.py`,
 deterministic report tool (`tools/start_investigation.py` with
 `tools/binary_triage.py`, `tools/startup_analyzer.py`,
 `tools/investigation_memory.py`, `tools/evidence_collector.py`, and
-`tools/report_generator.py`); and `tools/generate_evidence_pack.py`.
+`tools/report_generator.py`); `tools/generate_evidence_pack.py`; the shared
+project layout (`project_layout.py`); networking reconstruction
+(`tools/network_reconstruction.py`); and isolated unattended naming
+(`tools/naming_candidates.py`).
 
 ## Known integration gaps
 
@@ -83,21 +86,19 @@ pass.
 | Post-processing | `post_process.py` rebuilds Markdown, `index.json`, and function summaries only. | It cannot create `ai_context.json`, which depends on a live `Program`. |
 | Chroma implementations | The normal host route now uses `host_config.py`, but the Docker-oriented `experimental/ai_tools/build_embeddings.py` still has separate `/data` settings. | The Docker helper must be deliberately aligned before it is used. |
 | Docker embedding helper | `experimental/ai_tools/build_embeddings.py` imports `USE_FUNCTION_RANKER` and `RANK_LIMIT` from the sibling `experimental/ai_tools/config.py`, which does not define them. | That helper will raise an import error when run from its own directory. (Now clearly under `experimental/`.) |
-| LLM agents | `tool_agent.py` implements the interactive JSON tool loop over `EvidenceTools`, which uses the same `LocalEvidenceStore` core as the HTTP and MCP adapters. `local_agent.py` is only a compatibility entry point for the same agent. | Agent evidence, HTTP evidence, and MCP evidence now share accepted annotations and derived context. |
-| Packaging | Dependencies are split into `requirements-core.txt` (baseline), `requirements-optional.txt` (experimental semantic/vector), and a pinned `requirements.lock` for the baseline. | The baseline is now reproducible; the optional stack remains unpinned. A fixture *export* for end-to-end regression is still absent (unit fixtures exist in `tests/`). |
+| LLM agents | Experimental `tool_agent.py` uses the shared `LocalEvidenceStore`; the supported MCP surface adds isolated per-run proposals and progress. | Unattended output stays disposable until a separate reviewer promotes it. |
+| Packaging | Dependencies are split into `requirements-core.txt` (baseline), `requirements-optional.txt` (experimental semantic/vector), and a pinned `requirements.lock` for the baseline. | The baseline is reproducible; the optional stack remains unpinned. `samples/tiny_export` is the end-to-end fixture. |
 
 ## Recommended development order
 
-1. Add a fixture *export* so the validated schema and search behaviour are
-   regression-tested end to end. (A pinned `requirements.lock` for the baseline
-   now exists; the `tests/` fixtures cover the store contract but not a full
-   on-disk export.)
-2. Decide whether `ai_chunks.json` should be enabled by default for a target
+1. Add concurrent-writer protection for annotations and agent-run candidates.
+2. Add a reviewed runtime-capture correlation schema for networking work.
+3. Decide whether `ai_chunks.json` should be enabled by default for a target
    export; it is wired into the pipeline but remains opt-in because it can be
    large.
-3. Choose one semantic-search implementation (local vectors or Chroma) and
+4. Choose one semantic-search implementation (local vectors or Chroma) and
    retire or clearly isolate the other.
-4. Expand the evidence-backed agent tests around real model tool-call
+5. Expand the evidence-backed agent tests around real model tool-call
    transcripts before treating local LLM runs as a supported automated mode.
 
 The local evidence layer exposes raw evidence plus accepted reversible
