@@ -41,4 +41,4 @@ py-modules = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["tools*", "exporters*", "util*"]
+include = ["tools*", "exporters*", "util*", "experimental*"]

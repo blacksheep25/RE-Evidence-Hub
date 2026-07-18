@@ -11,8 +11,10 @@ The project has two runtime boundaries.
 1. **Ghidra export runtime.** `run_exporter.py` is executed by Ghidra's Script
    Manager.  It receives `currentProgram` and `monitor` from Ghidra, then
    invokes `AIExporter` and `ExportPipeline`.
-2. **Host analysis runtime.** Scripts in `tools/`, `ai_tools/`, and the
-   top-level Chroma/API scripts run under a normal Python 3 installation.  They
+2. **Host analysis runtime.** Scripts in `tools/`, the top-level API scripts,
+   and the unsupported helpers under `experimental/` (see
+   [experimental/README.md](../experimental/README.md)) run under a normal
+   Python 3 installation.  They
    consume an already-created export directory and may need third-party Python
    packages or a running local LLM service.
 
@@ -99,7 +101,7 @@ can create further files in the same export folder:
 | `tools/build_name_review_queue.py` | `name_review_queue.json` (derived, non-promoting direct import/resource naming candidates) |
 | `exporters/embedding_exporter.py` / `tools/build_chunks.py` | `ai_chunks.json` |
 | `tools/vector_indexer.py` | `vectors/embeddings.npy`, `vectors/metadata.json` |
-| `build_embeddings_host.py` | A separate Chroma collection called `ghidra` |
+| `experimental/build_embeddings_host.py` | A separate Chroma collection called `ghidra` |
 
 ## Host entry points
 
@@ -111,8 +113,8 @@ can create further files in the same export folder:
 | `python tools/build_chunks.py <export>` | Creates `ai_chunks.json` from raw function JSON without rerunning Ghidra. | Core export. |
 | `python tools/query_engine.py <export> <query>` | Searches `ai_chunks.json` by lexical scoring. | `ai_chunks.json`. |
 | `python tools/vector_indexer.py <export>` | Builds local NumPy vectors with `all-MiniLM-L6-v2`. | `ai_chunks.json`, NumPy, sentence-transformers. |
-| `python tools/vector_query.py <export> <query>` | Searches local NumPy vectors. | `vectors/` output from the indexer. |
-| `python build_embeddings_host.py` | Rebuilds the configured Chroma collection using BGE embeddings. | Edit hard-coded paths; Chroma and sentence-transformers. |
+| `python experimental/vector_query.py <export> <query>` | Searches local NumPy vectors. | `vectors/` output from the indexer. |
+| `python experimental/build_embeddings_host.py` | Rebuilds the configured Chroma collection using BGE embeddings. | Edit hard-coded paths; Chroma and sentence-transformers. |
 | `python binary_agent_server.py --export <export>` | Starts the local evidence JSON API on `127.0.0.1:5006`. | Core export and Flask; semantic routes load optional dependencies only when called. |
 | `python binary_agent_mcp_server.py --export <export>` | Starts the read-only stdio MCP adapter. | Core export only. |
 | `python tools/build_local_index.py <export>` | Builds the optional fast local FTS5 body-search index. | Core export. |

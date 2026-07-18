@@ -10,7 +10,8 @@
 
 - **Host-side Python 3:** `binary_agent_server.py`,
   `binary_agent_mcp_server.py`, `tools/local_evidence.py`,
-  `tools/evidence_tools.py`, and host tools under `tools/` and `ai_tools/`.
+  `tools/evidence_tools.py`, supported host tools under `tools/`, and optional
+  legacy/semantic helpers under `experimental/`.
 - **Ghidra-side:** `run_exporter.py`, `AIExporter.py`, `pipeline.py`,
   `exporters/`, and `util/` run in Ghidra's Python environment, not ordinary
   host Python. The verified Ghidra 12.x workflow launches the UI through
