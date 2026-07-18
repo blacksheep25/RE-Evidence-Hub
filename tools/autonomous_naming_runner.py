@@ -18,6 +18,7 @@ from typing import Any, Dict, Optional
 import requests
 
 from binary_agent_mcp_server import call_tool
+from tools.agent_evidence import evidence_values
 from tools import investigation_ledger as ledger
 from tools.investigation_ledger import run_directory
 from tools.local_evidence import LocalEvidenceStore
@@ -28,8 +29,9 @@ SYSTEM_PROMPT = """You are an evidence-first reverse-engineering naming agent.
 Return exactly one JSON object. Never guess. The schema is:
 {"action":"propose|skip|defer","name":"Symbol","confidence":"medium|high","evidence":["..."],"evidence_refs":["..."],"rationale":"...","note":"..."}
 For propose, evidence_refs must be exact import names, string values, or named
-caller/callee values present in the supplied bundle. Prefer skip to an inferred
-class, protocol, game feature, or side effect. Do not include Markdown."""
+caller/callee values copied verbatim from allowed_evidence_refs. Never use an
+address as an evidence ref. Prefer skip to an inferred class, protocol, game
+feature, or side effect. Do not include Markdown."""
 
 
 def _utc_now() -> str:
@@ -60,7 +62,8 @@ class ModelResponseError(RuntimeError):
 class LocalModelClient:
     def __init__(self, endpoint: str, model: str, provider: str = "openai",
                  api_key: str = "", timeout: int = 300, temperature: float = 0.0,
-                 retries: int = 2, max_tokens: int = 1200):
+                 retries: int = 2, max_tokens: int = 600,
+                 context_window: int = 0):
         self.endpoint = endpoint
         self.model = model
         self.provider = provider
@@ -69,6 +72,7 @@ class LocalModelClient:
         self.temperature = temperature
         self.retries = max(0, retries)
         self.max_tokens = max(64, int(max_tokens))
+        self.context_window = max(0, int(context_window))
 
     def decide(self, lookup: Dict[str, Any]) -> Dict[str, Any]:
         user = "Name or skip this function using only this evidence:\n" + json.dumps(lookup, ensure_ascii=False)
@@ -76,12 +80,15 @@ class LocalModelClient:
         if self.api_key:
             headers["Authorization"] = "Bearer " + self.api_key
         if self.provider == "ollama":
+            options = {"temperature": self.temperature, "num_predict": self.max_tokens}
+            if self.context_window:
+                options["num_ctx"] = self.context_window
             payload = {
                 "model": self.model,
                 "messages": [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": user}],
                 "stream": False,
                 "format": "json",
-                "options": {"temperature": self.temperature, "num_predict": self.max_tokens},
+                "options": options,
             }
         else:
             payload = {
@@ -121,14 +128,52 @@ class LocalModelClient:
 
 def _bounded_lookup(store: LocalEvidenceStore, address: str, context_chars: int) -> Dict[str, Any]:
     lookup = store.lookup(address, include_decompiler=True, include_assembly=False)
-    decompiler = lookup.get("decompiler", {})
-    if isinstance(decompiler, dict):
-        code = str(decompiler.get("c_code", ""))
-        if len(code) > context_chars:
-            decompiler = dict(decompiler)
-            decompiler["c_code"] = code[:context_chars] + "\n/* truncated by overnight runner */"
-            lookup["decompiler"] = decompiler
-    return lookup
+    decompiler = lookup.get("decompiler", {}) or {}
+    code = str(decompiler.get("c_code", ""))
+    if len(code) > context_chars:
+        code = code[:context_chars] + "\n/* truncated by overnight runner */"
+
+    evidence = lookup.get("evidence", {}) or {}
+    relationships = lookup.get("relationships", {}) or {}
+    function = lookup.get("function", {}) or {}
+
+    # The raw lookup contains useful API detail but also repeated metadata,
+    # locals already present in the decompiler text, and large xref records.
+    # Keep the unattended prompt compact so Ollama does not truncate the system
+    # contract or JSON schema at modest runtime context sizes.
+    allowed_refs = list(dict.fromkeys(evidence_values(lookup)))
+    return {
+        "target": lookup.get("target", {}),
+        "function": {
+            key: function.get(key)
+            for key in ("address", "raw_name", "active_name", "namespace", "signature", "size", "parameters")
+            if function.get(key) not in (None, "", [], {})
+        },
+        "evidence": {
+            "strings": [
+                {key: item.get(key) for key in ("value", "address") if item.get(key) not in (None, "")}
+                for item in evidence.get("strings", []) or []
+            ],
+            "imports": [
+                {key: item.get(key) for key in ("name", "library") if item.get(key) not in (None, "")}
+                for item in evidence.get("imports", []) or []
+            ],
+            "comments": evidence.get("comments", []) or [],
+        },
+        "relationships": {
+            direction: [
+                {
+                    key: item.get(key)
+                    for key in ("address", "raw_name", "active_name", "name", "external")
+                    if item.get(key) not in (None, "")
+                }
+                for item in relationships.get(direction, []) or []
+            ]
+            for direction in ("callers", "callees")
+        },
+        "allowed_evidence_refs": allowed_refs,
+        "decompiler": {"success": bool(decompiler.get("success")), "c_code": code},
+    }
 
 
 def _append_log(export_path: str, run_id: str, event: Dict[str, Any]) -> None:
@@ -245,13 +290,16 @@ def main(argv=None):
     parser.add_argument("--max-targets", type=int, default=100)
     parser.add_argument("--max-minutes", type=float, default=480)
     parser.add_argument("--context-chars", type=int, default=12000)
+    parser.add_argument("--context-window", type=int, default=0,
+                        help="Ollama runtime context tokens (num_ctx); 0 keeps the provider default.")
     parser.add_argument("--timeout", type=int, default=300)
     parser.add_argument("--retries", type=int, default=2)
     parser.add_argument("--temperature", type=float, default=0.0)
-    parser.add_argument("--max-tokens", type=int, default=1200, help="Maximum model output tokens per target.")
+    parser.add_argument("--max-tokens", type=int, default=600, help="Maximum model output tokens per target.")
     parser.add_argument("--dry-run", action="store_true", help="Ask for one decision and perform no writes.")
     args = parser.parse_args(argv)
-    client = LocalModelClient(args.endpoint, args.model, args.provider, args.api_key, args.timeout, args.temperature, args.retries, args.max_tokens)
+    client = LocalModelClient(args.endpoint, args.model, args.provider, args.api_key, args.timeout,
+                              args.temperature, args.retries, args.max_tokens, args.context_window)
     result = run_overnight(LocalEvidenceStore(args.export_path), client, args.run_id, args.max_targets, args.max_minutes, args.context_chars, args.dry_run)
     print(json.dumps(result, indent=2, ensure_ascii=False))
     return 1 if result.get("fatal_errors") else 0

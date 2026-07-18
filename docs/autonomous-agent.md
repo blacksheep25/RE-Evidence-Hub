@@ -92,11 +92,12 @@ revhub overnight `
   --run-id local-night-01 `
   --max-targets 500 `
   --max-minutes 480 `
+  --context-window 16384 `
   --context-chars 12000 `
   --timeout 300 `
   --retries 2 `
   --temperature 0 `
-  --max-tokens 1200
+  --max-tokens 600
 ```
 
 The example stops after 500 targets or eight hours, whichever comes first.
@@ -113,6 +114,25 @@ decisions so the pass can continue. A genuine provider/API outage still stops
 the run safely instead of mass-deferring functions while the model is offline.
 A model proposal must pass the same evidence guard as an MCP proposal. Passing
 that guard makes it reviewable, not correct.
+
+### Ollama context and GPU sizing
+
+`--context-window` sets Ollama's runtime `num_ctx` value. This is separate from
+`--context-chars`, which limits only the decompiled C text placed in each
+request. The runner removes redundant lookup metadata and supplies an explicit
+`allowed_evidence_refs` list, but the system prompt, evidence, code, and model
+output must still fit in the runtime context together.
+
+For a 14B Q4 model on a 16 GB GPU, start with `--context-window 16384` and
+`--max-tokens 600`. This is a practical quality/VRAM balance for the example
+12,000-character code limit. A 32K context can require substantially more KV
+cache and may spill into system memory or fail depending on model architecture
+and other GPU use. Smaller GPUs should start with 4096 or 8192 and reduce
+`--context-chars` if Ollama reports an allocation failure.
+
+Omitting `--context-window`, or setting it to zero, preserves the provider's
+configured default. Do not assume a model's advertised maximum is Ollama's
+active runtime context; inspect `ollama ps` while the model is loaded.
 
 ## Monitor a running pass
 
@@ -204,7 +224,8 @@ directory when discarding an agent pass.
 | HTTP 404 | Pair `--provider ollama` with `/api/chat`, or `--provider openai` with the server's `/v1/chat/completions` endpoint. |
 | Model not found | Use the exact name from `ollama list`; run `ollama pull <name>` if it is absent. |
 | Model response did not contain JSON | Use an instruction-following model, keep temperature at zero, and test again with `--dry-run`. |
-| Requests time out or exhaust memory | Use a smaller model or lower `--context-chars`; increase `--timeout` only when the model is healthy but slow. |
+| Model refuses a benign function or gives unrelated output | Check `ollama ps` and the Ollama server log for prompt truncation. Set an explicit `--context-window`; on a 16 GB GPU with a 14B Q4 model, start at 16384. |
+| Requests time out or exhaust memory | Lower `--context-window` and `--context-chars`, close other GPU-heavy applications, or use a smaller model; increase `--timeout` only when the model is healthy but slow. |
 | Runner exits after partial progress | A `provider-error` means the endpoint remained unavailable after retries. Fix it and reuse the same run id; isolated malformed decisions no longer stop the pass. |
 | Few or no pending candidates | Inspect skip/defer decisions and rejected proposal results; the guard intentionally refuses weakly grounded names. |
 | Wrong binary appears in the output | Stop, run `revhub use <correct-project>`, then confirm with `revhub query status` before choosing a new run id. |
