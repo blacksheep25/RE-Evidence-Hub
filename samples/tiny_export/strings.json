@@ -1,0 +1,7 @@
+[
+    {
+        "address": "01000000",
+        "value": "interface\\outer\\login_panel.asset",
+        "functions": [{"address": "00401000", "name": "FUN_00401000"}]
+    }
+]
