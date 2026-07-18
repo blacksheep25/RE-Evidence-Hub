@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install baseline dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install flask requests numpy
+
+      - name: Unit tests
+        run: python -m unittest discover -s tests
+
+      - name: Validate the sample export
+        run: python tools/validate_export.py samples/tiny_export --full
+
+      - name: Evidence store status (no derived indexes required)
+        run: python tools/evidence_tools.py --export samples/tiny_export status
+
+      - name: Resolve an accepted annotation through the overlay
+        run: python tools/evidence_tools.py --export samples/tiny_export lookup CPSTitle_ApplyLayout --no-decompiler
+
+      - name: Build derived indexes on the sample
+        run: |
+          python tools/build_local_index.py samples/tiny_export
+          python tools/build_class_registry.py samples/tiny_export
+          python tools/build_name_review_queue.py samples/tiny_export --limit 50
+
+      - name: Full-text body search after indexing
+        run: python tools/evidence_tools.py --export samples/tiny_export search login_panel --limit 5
