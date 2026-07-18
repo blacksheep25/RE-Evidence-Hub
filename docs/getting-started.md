@@ -133,11 +133,19 @@ revhub mcp --run-id investigation-01
 
 Interactive reviewers may use `binary_annotate`. Unattended models use `binary_propose_name`, writing only to `agent_runs/<run-id>/`. Review later with `binary_candidate_queue` and `binary_review_candidate`. See [AI agent guide](ai-agent-guide.md) and [Overnight naming](autonomous-agent.md).
 
-Or drive a local OpenAI-compatible/Ollama model directly:
+Or test one decision through Ollama's native local endpoint:
 
 ```powershell
-revhub overnight --model qwen3-coder:30b --run-id investigation-01 --dry-run
+revhub overnight --provider ollama `
+  --endpoint http://127.0.0.1:11434/api/chat `
+  --model qwen3-coder:30b `
+  --run-id investigation-01 `
+  --dry-run
 ```
+
+Before leaving it unattended, follow the complete [overnight local-model
+quick start](autonomous-agent.md) for provider setup, bounded run settings,
+monitoring, Windows sleep, resume behaviour, morning review, and disposal.
 
 Optional semantic search now uses one portable per-export backend:
 
