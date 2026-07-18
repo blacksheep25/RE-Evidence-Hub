@@ -106,10 +106,13 @@ and temporarily configure Windows not to put the computer to sleep; the display
 may turn off, but system sleep pauses the run. Restore the preferred sleep
 setting afterwards.
 
-The runner processes one function at a time, bounds decompiler context, retries
-transient HTTP failures, and stops after the first unrecoverable model/API
-error. A model proposal must pass the same evidence guard as an MCP proposal.
-Passing that guard makes it reviewable, not correct.
+The runner processes one function at a time, bounds decompiler context, and
+retries transient HTTP failures. A malformed per-function decision is logged
+and deferred; the existing attempt limit retires that target after three bad
+decisions so the pass can continue. A genuine provider/API outage still stops
+the run safely instead of mass-deferring functions while the model is offline.
+A model proposal must pass the same evidence guard as an MCP proposal. Passing
+that guard makes it reviewable, not correct.
 
 ## Monitor a running pass
 
@@ -202,7 +205,7 @@ directory when discarding an agent pass.
 | Model not found | Use the exact name from `ollama list`; run `ollama pull <name>` if it is absent. |
 | Model response did not contain JSON | Use an instruction-following model, keep temperature at zero, and test again with `--dry-run`. |
 | Requests time out or exhaust memory | Use a smaller model or lower `--context-chars`; increase `--timeout` only when the model is healthy but slow. |
-| Runner exits after partial progress | Read the last `runner.jsonl` event, fix the error, and reuse the same run id. |
+| Runner exits after partial progress | A `provider-error` means the endpoint remained unavailable after retries. Fix it and reuse the same run id; isolated malformed decisions no longer stop the pass. |
 | Few or no pending candidates | Inspect skip/defer decisions and rejected proposal results; the guard intentionally refuses weakly grounded names. |
 | Wrong binary appears in the output | Stop, run `revhub use <correct-project>`, then confirm with `revhub query status` before choosing a new run id. |
 
