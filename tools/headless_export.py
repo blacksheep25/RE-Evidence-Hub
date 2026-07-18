@@ -18,8 +18,8 @@ Prerequisites:
 Example:
   python tools/headless_export.py --binary "C:/samples/DownloadServer.exe"
 
-The export is written to ~/ghidra_ai_exports/<ProgramName>/ (the exporter's
-configured output root; see config.py). Validate it afterwards with
+The export is written to project_exports/<ProgramName>/ by default (override
+with RE_EVIDENCE_PROJECTS_ROOT). Validate it afterwards with
 tools/validate_export.py.
 """
 
@@ -33,8 +33,13 @@ import sys
 import tempfile
 import warnings
 
-
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
+
+from project_layout import project_export_path
+
+
 ENTRY_SCRIPT = os.path.join(REPO_ROOT, "tools", "_ghidra_export_entry.py")
 
 
@@ -73,8 +78,7 @@ def find_java_home(explicit):
 
 
 def expected_output(program_name):
-    root = os.path.expanduser("~/ghidra_ai_exports")
-    return os.path.join(root, program_name.replace(" ", "_"))
+    return project_export_path(program_name)
 
 
 def main(argv=None):

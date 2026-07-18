@@ -31,6 +31,11 @@ Preserve the raw address/name and cite the annotation evidence and confidence.
 Never promote an LLM suggestion, heuristic, or search hit to an accepted name
 without direct evidence.
 
+For unattended naming, write only isolated candidates with
+`binary_propose_name`. Do not call `binary_annotate` or review your own pass.
+A separate capable reviewer must inspect the function and use
+`binary_review_candidate` to accept or reject the proposal.
+
 
 ## Dataset Structure
 

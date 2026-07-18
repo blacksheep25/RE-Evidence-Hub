@@ -1,7 +1,8 @@
 """Durable, resumable work ledger for autonomous investigation runs.
 
-Tracks per-function progress in ``investigation_progress.json`` beside the
-export, with atomic writes so an overnight run resumes cleanly after a crash or
+Tracks per-function progress in ``agent_runs/<run-id>/investigation_progress.json``
+(or the legacy export-root location when no run id is supplied), with atomic
+writes so an overnight run resumes cleanly after a crash or
 restart. It is the "what's done / what's next" companion to the annotation
 overlay (the "what was concluded"): together they let an agent stop and resume
 without redoing work or losing findings.
@@ -31,16 +32,30 @@ STATUSES = ("done", "skipped", "deferred")
 MAX_ATTEMPTS = 3
 
 
-def ledger_path(export_path: str) -> str:
-    return os.path.join(os.path.abspath(export_path), LEDGER_NAME)
+def _safe_run_id(run_id: Optional[str]) -> Optional[str]:
+    if run_id is None:
+        return None
+    value = str(run_id).strip()
+    if not value or value in (".", "..") or any(char in value for char in '<>:"/\\|?*'):
+        raise ValueError("run_id must be a non-empty filesystem-safe name")
+    return value
+
+
+def run_directory(export_path: str, run_id: str) -> str:
+    return os.path.join(os.path.abspath(export_path), "agent_runs", _safe_run_id(run_id))
+
+
+def ledger_path(export_path: str, run_id: Optional[str] = None) -> str:
+    base = run_directory(export_path, run_id) if run_id is not None else os.path.abspath(export_path)
+    return os.path.join(base, LEDGER_NAME)
 
 
 def _utc_now() -> str:
     return datetime.datetime.now(datetime.timezone.utc).isoformat()
 
 
-def load(export_path: str) -> Dict[str, Any]:
-    path = ledger_path(export_path)
+def load(export_path: str, run_id: Optional[str] = None) -> Dict[str, Any]:
+    path = ledger_path(export_path, run_id)
     if os.path.isfile(path):
         try:
             with open(path, "r", encoding="utf-8", errors="replace") as handle:
@@ -55,10 +70,11 @@ def load(export_path: str) -> Dict[str, Any]:
     return {"schema_version": SCHEMA_VERSION, "created_utc": _utc_now(), "entries": {}}
 
 
-def _atomic_save(export_path: str, data: Dict[str, Any]) -> None:
+def _atomic_save(export_path: str, data: Dict[str, Any], run_id: Optional[str] = None) -> None:
     data["updated_utc"] = _utc_now()
-    path = ledger_path(export_path)
+    path = ledger_path(export_path, run_id)
     directory = os.path.dirname(path) or "."
+    os.makedirs(directory, exist_ok=True)
     handle = tempfile.NamedTemporaryFile(
         "w", encoding="utf-8", dir=directory, prefix=".progress-", suffix=".tmp", delete=False
     )
@@ -79,18 +95,18 @@ def _atomic_save(export_path: str, data: Dict[str, Any]) -> None:
             os.remove(handle.name)
 
 
-def record(export_path: str, address: str, status: str, note: str = "") -> Dict[str, Any]:
+def record(export_path: str, address: str, status: str, note: str = "", run_id: Optional[str] = None) -> Dict[str, Any]:
     """Record a terminal/deferred outcome for one target and persist atomically."""
     if status not in STATUSES:
         raise ValueError("Invalid status: {} (expected one of {})".format(status, STATUSES))
-    data = load(export_path)
+    data = load(export_path, run_id)
     entry = data["entries"].get(address, {"attempts": 0})
     entry["status"] = status
     entry["note"] = note or ""
     entry["attempts"] = int(entry.get("attempts", 0)) + 1
     entry["updated_utc"] = _utc_now()
     data["entries"][address] = entry
-    _atomic_save(export_path, data)
+    _atomic_save(export_path, data, run_id)
     return {"address": address, "status": status, "attempts": entry["attempts"]}
 
 
@@ -99,14 +115,14 @@ def _annotated_addresses(store: Any) -> set:
     return {addr for addr, entry in entries.items() if entry.get("active_name")}
 
 
-def next_target(store: Any, export_path: str, limit: int = 500) -> Optional[Dict[str, Any]]:
+def next_target(store: Any, export_path: str, limit: int = 500, run_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """Pick the next function to work on, or None if the frontier is exhausted.
 
     Skips anything already annotated or recorded done/skipped. Deferred targets
     remain eligible (they are re-served). Read-only: it does not mutate the
     ledger — the agent records the outcome via annotate (done) or record(skip).
     """
-    data = load(export_path)
+    data = load(export_path, run_id)
     blocked = {
         addr for addr, e in data["entries"].items()
         if e.get("status") in TERMINAL_STATUSES or int(e.get("attempts", 0)) >= MAX_ATTEMPTS
@@ -145,8 +161,8 @@ def next_target(store: Any, export_path: str, limit: int = 500) -> Optional[Dict
     return None
 
 
-def summary(store: Any, export_path: str) -> Dict[str, Any]:
-    data = load(export_path)
+def summary(store: Any, export_path: str, run_id: Optional[str] = None) -> Dict[str, Any]:
+    data = load(export_path, run_id)
     by_status: Dict[str, int] = {}
     for entry in data["entries"].values():
         by_status[entry.get("status", "?")] = by_status.get(entry.get("status", "?"), 0) + 1
@@ -161,4 +177,5 @@ def summary(store: Any, export_path: str) -> Dict[str, Any]:
         "by_status": by_status,
         "remaining_estimate": max(0, total - len(resolved)),
         "updated_utc": data.get("updated_utc", ""),
+        "run_id": run_id,
     }

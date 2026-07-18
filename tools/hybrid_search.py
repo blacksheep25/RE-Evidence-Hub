@@ -2,16 +2,6 @@ import json
 import os
 import re
 
-from experimental.ai_tools.ranker import FunctionRanker
-from experimental.ai_tools.query import BinarySearch
-from experimental.ai_tools.embeddings import BinaryEmbeddings
-from experimental.ai_tools.memory import BinaryMemory
-from experimental.ai_tools.callgraph import CallGraph
-from experimental.ai_tools.ghidra_types import BinaryTypes
-from experimental.ai_tools.string_search import StringSearch
-from experimental.ai_tools.strings import BinaryStrings
-
-
 NETWORK_WORDS = [
     "socket",
     "connect",
@@ -36,6 +26,18 @@ class HybridSearch:
 
 
     def __init__(self, export_path):
+
+        # Keep the supported local evidence/HTTP/MCP surface importable without
+        # the optional vector stack. This compatibility bridge is the only
+        # supported-to-experimental link, so load it only when instantiated.
+        from experimental.ai_tools.ranker import FunctionRanker
+        from experimental.ai_tools.query import BinarySearch
+        from experimental.ai_tools.embeddings import BinaryEmbeddings
+        from experimental.ai_tools.memory import BinaryMemory
+        from experimental.ai_tools.callgraph import CallGraph
+        from experimental.ai_tools.ghidra_types import BinaryTypes
+        from experimental.ai_tools.string_search import StringSearch
+        from experimental.ai_tools.strings import BinaryStrings
 
         self.export_path = export_path
 

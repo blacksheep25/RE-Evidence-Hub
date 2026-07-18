@@ -1,342 +1,126 @@
-# Getting Started
+# Getting started
 
-This guide assumes you have never used this project before. The short version:
-open a binary in Ghidra, export it to JSON, then use local tools to search and
-review that evidence without keeping Ghidra open.
+This guide takes a new user from a Ghidra program to validated, queryable evidence. The core workflow is local and does not require an LLM, Chroma, or a background service.
 
-## What This Project Is
-
-Ghidra AI Exporter is a bridge between Ghidra and external analysis tools.
-Ghidra is excellent for detailed reverse engineering, but it is not always the
-most convenient place to do broad searches, build reports, or feed small
-evidence bundles to AI.
-
-The exporter creates a folder containing structured JSON:
-
-- one file per function;
-- imports, strings, globals, types, memory blocks, and call graph data;
-- decompiler output and assembly;
-- a search index;
-- optional derived files for faster or richer lookup.
-
-After that, host-side Python tools can query the folder directly.
-
-## Why You Would Use It
-
-Use this project when you want to:
-
-- search a large Ghidra program quickly by name, string, import, or decompiler
-  text;
-- give an AI assistant precise evidence without pasting giant files;
-- inspect callers, callees, strings, imports, and decompiler output from one
-  local API call;
-- record reviewed function names in a reversible overlay;
-- build repeatable reports and derived indexes from a saved export;
-- work without keeping Ghidra open once the export is created.
-
-Do not use it as an automatic truth machine. It preserves and retrieves
-evidence; you still decide what the evidence proves.
-
-## Prerequisites
-
-- Ghidra with the target program loaded and analysed.
-- Python 3 for host-side tools.
-- Host dependencies when using the HTTP API, CLI, MCP adapter, or derived-index
-  builders. The supported baseline is small:
-
-```powershell
-python -m pip install -r requirements-core.txt
-```
-
-  For an exact, reproducible install (pinned transitive dependencies), use the
-  lock file instead:
-
-```powershell
-python -m pip install -r requirements.lock
-```
-
-  The optional semantic/vector search path (Chroma + embeddings) is experimental
-  and pulls in PyTorch. Install it only if you need those routes:
-
-```powershell
-python -m pip install -r requirements-optional.txt
-```
-
-Core export runs inside Ghidra's own scripting environment. Host tools run in
-normal Python. Keep those worlds separate. A virtual environment is recommended
-for the host tools:
+## 1. Install the host tools
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.lock
+.\.venv\Scripts\python.exe -m pip install -e .
+revhub doctor
 ```
 
-## Step 1: Export From Ghidra
+`requirements-core.txt` is the small unpinned baseline. The lock file is reproducible. `requirements-optional.txt` is experimental semantic search and is unnecessary for export, validation, HTTP, MCP, or direct queries.
 
-1. Open the target program in Ghidra.
-2. Let Ghidra analyse it.
-3. Open Script Manager.
-4. Run `run_exporter.py` from this project.
+Try the checked-in fixture without Ghidra:
 
-By default, the export goes to:
-
-```text
-%USERPROFILE%\ghidra_ai_exports\<program-name>
+```powershell
+revhub use .\samples\tiny_export
+revhub validate --full
+revhub query status
+revhub query lookup 00401000 --no-decompiler
 ```
 
-Example export path:
+## 2. Export a program
 
-```text
-%USERPROFILE%\ghidra_ai_exports\sample_program.exe
+### Ghidra user interface
+
+1. Open the target in Ghidra and let analysis finish.
+2. Add this repository as a Script Manager directory.
+3. Run `run_exporter.py`.
+4. Read `<export>/export_report.json`; do not continue past a failed stage.
+
+The default destination is `<repository>/project_exports/<program-name>/`. Each program is self-contained. To use another drive, set this before starting Ghidra or host tools:
+
+```powershell
+$env:RE_EVIDENCE_PROJECTS_ROOT = 'X:\RE-Projects'
 ```
 
-The export report is written to:
+### Headless export
 
-```text
-<export>\export_report.json
-```
-
-Open that if a stage failed.
-
-### Alternative: export without opening Ghidra (headless)
-
-If you would rather not open the Ghidra GUI, run the same pipeline headless with
-`tools/headless_export.py`. It imports the binary, runs auto-analysis, and runs
-the exporter through PyGhidra.
-
-Prerequisites:
-
-- A local Ghidra install (>= 12.0). Point to it with `--ghidra` or the
-  `GHIDRA_INSTALL_DIR` environment variable.
-- A JDK 21 (Ghidra's requirement), on `PATH`, in `JAVA_HOME`, or passed with
-  `--java-home`.
-- PyGhidra in your host Python:
+Headless export needs Ghidra 12.x, JDK 21, and PyGhidra:
 
 ```powershell
 python -m pip install -r requirements-headless.txt
-# offline, matching your Ghidra build exactly:
-# python -m pip install --no-index -f <GHIDRA>\Ghidra\Features\PyGhidra\pypkg\dist pyghidra
+$env:GHIDRA_INSTALL_DIR = 'C:\Tools\ghidra_12.1.2_PUBLIC'
+python .\tools\headless_export.py --binary 'C:\samples\TargetClient.exe'
 ```
 
-Run it:
+Ghidra 11.3+ does not run these scripts through plain `analyzeHeadless -postScript`; the supplied driver launches through PyGhidra.
+
+## 3. Select and validate the project
 
 ```powershell
-$env:GHIDRA_INSTALL_DIR = "C:\path\to\ghidra_12.1.2_PUBLIC"
-python .\tools\headless_export.py --binary "C:\samples\sample_program.exe"
+revhub projects
+revhub use TargetClient.exe
+revhub validate --full
 ```
 
-The export lands in the same place as the GUI exporter
-(`%USERPROFILE%\ghidra_ai_exports\<ProgramName>`). Continue with Step 2.
+`revhub use` accepts a project name or path. Resolution order is explicit argument, `GHIDRA_AI_EXPORT_PATH`, saved pointer, then repo-local default. Validation checks the manifest, index, function count, and every function record.
 
-Ghidra 11.3+ removed Jython, so a plain
-`analyzeHeadless ... -postScript run_exporter.py` cannot run the Python
-exporter ("Ghidra was not started with PyGhidra"). `headless_export.py` uses
-PyGhidra specifically to avoid that.
+## 4. Query evidence
 
-## Step 2: Validate the Export
-
-Before using the export for analysis, validate the basic structure:
+One-off queries need no server:
 
 ```powershell
-python .\tools\validate_export.py %USERPROFILE%\ghidra_ai_exports\sample_program.exe --full
+revhub query status
+revhub query search sendto --limit 10
+revhub query lookup 0047c870 --no-decompiler --assembly
 ```
 
-This checks required files, `index.json`, the function count, and every
-function record. If validation fails, fix or recreate the export before
-building derived indexes.
-
-## Step 3: Start the Local Evidence API
-
-Start the HTTP API when you want PowerShell, browser, or external AI clients
-to query the export:
+For HTTP clients, start the foreground service:
 
 ```powershell
-python .\binary_agent_server.py --export %USERPROFILE%\ghidra_ai_exports\sample_program.exe --port 5006
-```
-
-Check it:
-
-```powershell
+revhub serve --port 5006
 Invoke-RestMethod http://127.0.0.1:5006/health
-Invoke-RestMethod http://127.0.0.1:5006/status
+Invoke-RestMethod http://127.0.0.1:5006/routes
 ```
 
-`/health` is a small liveness check. `/status` tells you which export is being
-served, how many functions it has, how many accepted annotations exist, and
-which derived indexes are available.
+`/lookup` returns raw identity, accepted annotation, linked strings/imports, callers/callees, comments, xrefs, and optional decompiler/assembly.
 
-## Step 4: Search and Inspect Evidence
-
-Search for candidates:
+## 5. Build derived artifacts
 
 ```powershell
-Invoke-RestMethod http://127.0.0.1:5006/search `
-  -Method Post `
-  -ContentType application/json `
-  -Body '{"query":"sendto","limit":10}'
+revhub index
+revhub classes
+revhub review-queue --limit 250
+revhub network
 ```
 
-Inspect one candidate:
+- `local_evidence.sqlite3`: substring decompiler-body search.
+- `class_registry.json`: conservative class/vtable context.
+- `name_review_queue.json`: non-promoting heuristic leads.
+- `derived/network/`: networking lifecycle, leads, and unknowns.
+
+Restart HTTP/MCP after rebuilding derived artifacts. For annotation changes, HTTP `/reload` is enough.
+
+## 6. Record reviewed conclusions
+
+After checking concrete evidence, record a reversible name:
 
 ```powershell
-Invoke-RestMethod http://127.0.0.1:5006/lookup `
-  -Method Post `
-  -ContentType application/json `
-  -Body '{"address":"00401000","include_decompiler":true,"include_assembly":false}'
-```
-
-`/lookup` is usually the most important route. It returns:
-
-- raw function identity;
-- accepted annotation, if one exists;
-- strings and imports linked to the function;
-- callers and callees;
-- comments and xrefs;
-- optional decompiler and assembly output.
-
-## Step 5: Build Useful Derived Indexes
-
-The core API works from the raw export immediately. Derived indexes make
-specific workflows better.
-
-Fast decompiler-body search:
-
-```powershell
-python .\tools\build_local_index.py %USERPROFILE%\ghidra_ai_exports\sample_program.exe
-```
-
-
-Class/vtable review registry:
-
-```powershell
-python .\tools\build_class_registry.py %USERPROFILE%\ghidra_ai_exports\sample_program.exe
-```
-
-Low-confidence name review queue:
-
-```powershell
-python .\tools\build_name_review_queue.py %USERPROFILE%\ghidra_ai_exports\sample_program.exe --limit 250
-```
-
-Restart the HTTP/MCP service after rebuilding derived files. For annotation
-changes only, `/reload` is enough.
-
-## Step 6: Record Reviewed Function Names
-
-Do not rename functions just because a search result or model suggested a
-name. When you have concrete evidence, record it in the reversible annotation
-overlay:
-
-```powershell
-python .\tools\function_annotations.py init %USERPROFILE%\ghidra_ai_exports\sample_program.exe
-
+python .\tools\function_annotations.py init .\project_exports\TargetClient.exe
 python .\tools\function_annotations.py set `
-  %USERPROFILE%\ghidra_ai_exports\sample_program.exe `
-  00401000 `
-  Net_SendAck `
+  .\project_exports\TargetClient.exe 00401000 Net_SendAck `
   --confidence high `
-  --evidence "Calls sendto after building ACK payload"
+  --evidence 'Calls send after constructing the acknowledged frame'
 ```
 
-Refresh a running HTTP service:
+Accepted names live in `annotations/function_names.json`; raw exports remain unchanged. See [Function annotations](function-annotations.md).
+
+## 7. Connect an AI agent
 
 ```powershell
-Invoke-RestMethod http://127.0.0.1:5006/reload -Method Post
+revhub mcp --run-id investigation-01
 ```
 
-Accepted names appear as `active_name`; Ghidra's exported name remains
-available as `raw_name`.
-
-## Direct CLI Without a Server
-
-When you just want one query from PowerShell, use the direct evidence CLI
-instead of starting the HTTP server:
-
-```powershell
-python .\tools\evidence_tools.py --export %USERPROFILE%\ghidra_ai_exports\sample_program.exe status
-python .\tools\evidence_tools.py --export %USERPROFILE%\ghidra_ai_exports\sample_program.exe search sendto --limit 5
-python .\tools\evidence_tools.py --export %USERPROFILE%\ghidra_ai_exports\sample_program.exe lookup 0047c870 --no-decompiler --assembly
-```
-
-This prints JSON and uses the same evidence core as the HTTP and MCP adapters.
-It does not start a background process.
-
-## AI Workflows
-
-There are three ways AI can use the export:
-
-| Situation | Use |
-| --- | --- |
-| AI can run Python in this repo | `tools/evidence_tools.py` |
-| AI or another process can call HTTP | `binary_agent_server.py` or `tools/evidence_client.py` |
-| AI client supports MCP | `binary_agent_mcp_server.py` |
-
-For an interactive local model:
-
-```powershell
-python .\experimental\tool_agent.py %USERPROFILE%\ghidra_ai_exports\sample_program.exe http://localhost:11434/api/chat llama3
-```
-
-The model is expected to request tools, receive evidence, and then answer with
-addresses, evidence, and confidence. Semantic/vector routes are optional leads,
-not proof.
-
-## Common Questions
-
-**Do I need Ghidra open while using the API?**
-
-No. Ghidra is needed to create or refresh the export. The API reads the saved
-export folder.
-
-**Does this change my Ghidra database?**
-
-No. Host tools read raw export files and write derived files beside them. The
-function-name overlay is local and reversible.
-
-**Why not have every script call the HTTP server?**
-
-Local Python scripts can import `LocalEvidenceStore` or `EvidenceTools`
-directly. That avoids port and process management. HTTP is for humans,
-external processes, and AI clients that need a stable local API.
-
-**What should I trust?**
-
-Trust raw evidence and accepted annotations. Treat autogenerated names,
-review-queue suggestions, semantic search, and model output as leads.
-
-**When do I rebuild things?**
-
-- Raw export changed: validate, rebuild derived indexes, restart services.
-- Annotation changed: call `/reload` or restart.
+Interactive reviewers may use `binary_annotate`. Unattended models use `binary_propose_name`, writing only to `agent_runs/<run-id>/`. Review later with `binary_candidate_queue` and `binary_review_candidate`. See [AI agent guide](ai-agent-guide.md) and [Overnight naming](autonomous-agent.md).
 
 ## Troubleshooting
 
-`/status` shows the wrong export:
-
-Stop the old server and restart with `--export <correct-folder>`.
-
-Port conflict:
-
-Use another port:
-
-```powershell
-python .\binary_agent_server.py --port 5010
-```
-
-Search misses decompiler-body text:
-
-Build `local_evidence.sqlite3` with `tools/build_local_index.py`. Body search is
-substring-based, so `recv` also finds `WSARecv`. If an index built by an older
-version misses substrings, rebuild it: the index now uses a trigram tokenizer
-(one-time cost — the index is larger and slower to build than the old
-whole-token one, but this is optional derived data you can rebuild any time).
-
-Class or review routes say unavailable:
-
-Build `class_registry.json` or `name_review_queue.json` and restart the
-service.
-
-Semantic routes fail:
-
-That is allowed. Core evidence routes do not depend on semantic/vector
-dependencies.
+- Run `revhub doctor` and confirm the active export.
+- Run `revhub validate --full` before debugging query failures.
+- Use `GET /health` for liveness and `GET /routes` for the HTTP catalog.
+- Run direct scripts from the repo root or install editable.
+- Missing optional vector packages must not affect core tools.

@@ -1,6 +1,6 @@
 # Project
 
-- **Name:** Ghidra AI Exporter.
+- **Name:** RE-Evidence-Hub (Ghidra exporter and local evidence workflow).
 - **Purpose:** Turn an opened Ghidra program into a portable evidence folder that
   humans, scripts, and AI tools can query without keeping Ghidra open.
 - **Evidence-first:** Generated names, heuristics, and model output are leads,
@@ -27,6 +27,9 @@
 - Serve: `python binary_agent_server.py --export <export> --port 5006`
 - Validate an export: `python tools/validate_export.py <export> --full`
   (requires a real or synthetic export folder)
+- List/select projects: `revhub projects`; `revhub use <project-name>`
+- Build networking evidence: `revhub network`
+- Start an isolated unattended pass: `revhub mcp --run-id <run-id>`
 
 CI covers host-side Python only. Do not import the Ghidra-side entry points,
 `exporters/`, or `util/` from host-only CI tests.
@@ -38,6 +41,10 @@ CI covers host-side Python only. Do not import the Ghidra-side entry points,
   `name_review_queue.json` must remain rebuildable from raw evidence.
 - Accepted annotations live in `<export>/annotations/` as a reversible overlay.
   Deleting the overlay must never change raw Ghidra output.
+- Unattended model output lives in `<export>/agent_runs/<run-id>/` and must not
+  become an accepted annotation without an explicit review action.
+- Repo-local exports live under `project_exports/<program-name>/` by default;
+  never commit their contents. `RE_EVIDENCE_PROJECTS_ROOT` may relocate them.
 - `exporters/` and `util/` must not import host-only dependencies such as Flask,
   Requests, Chroma, or sentence-transformers.
 - The HTTP API binds to `127.0.0.1` and must remain local-only. The MCP adapter
@@ -69,4 +76,6 @@ CI covers host-side Python only. Do not import the Ghidra-side entry points,
 - `README.md` and `docs/getting-started.md` for onboarding.
 - `docs/current-state.md` for supported versus experimental status.
 - `docs/architecture.md` for runtime boundaries and data contracts.
+- `docs/ai-agent-guide.md` for tool discipline and `docs/network-reconstruction.md`
+  for networking recreation evidence.
 

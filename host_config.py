@@ -10,7 +10,7 @@ The active export is resolved with this precedence (first match wins):
 1. An explicit path passed on the command line (``--export`` / positional).
 2. The ``GHIDRA_AI_EXPORT_PATH`` environment variable (a per-session override).
 3. The saved "current export" pointer written by ``revhub use <export>``.
-4. The built-in default (``~/ghidra_ai_exports/sample_program.exe``).
+4. The repo-local default (``project_exports/sample_program.exe``).
 
 Tools that default ``--export`` to :data:`DEFAULT_EXPORT_PATH` therefore pick up
 the pointer automatically, while an explicit path always wins.
@@ -19,10 +19,10 @@ the pointer automatically, while an explicit path always wins.
 
 import os
 
+from project_layout import project_export_path, resolve_project_or_path
 
-_BUILTIN_DEFAULT_EXPORT_PATH = os.path.expanduser(
-    "~/ghidra_ai_exports/sample_program.exe"
-)
+
+_BUILTIN_DEFAULT_EXPORT_PATH = project_export_path("sample_program.exe")
 
 
 def _config_dir():
@@ -57,7 +57,7 @@ def read_current_export():
 def write_current_export(path):
     """Persist an absolute current-export pointer and return it."""
 
-    resolved = os.path.abspath(os.path.expanduser(path))
+    resolved = resolve_project_or_path(path)
 
     os.makedirs(_config_dir(), exist_ok=True)
 
