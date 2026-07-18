@@ -83,12 +83,14 @@ pass.
 | Chroma implementations | The normal host route now uses `host_config.py`, but the Docker-oriented `experimental/ai_tools/build_embeddings.py` still has separate `/data` settings. | The Docker helper must be deliberately aligned before it is used. |
 | Docker embedding helper | `experimental/ai_tools/build_embeddings.py` imports `USE_FUNCTION_RANKER` and `RANK_LIMIT` from the sibling `experimental/ai_tools/config.py`, which does not define them. | That helper will raise an import error when run from its own directory. (Now clearly under `experimental/`.) |
 | LLM agents | `tool_agent.py` implements the interactive JSON tool loop over `EvidenceTools`, which uses the same `LocalEvidenceStore` core as the HTTP and MCP adapters. `local_agent.py` is only a compatibility entry point for the same agent. | Agent evidence, HTTP evidence, and MCP evidence now share accepted annotations and derived context. |
-| Packaging | `requirements.txt` lists host dependencies and the local evidence store has fixture tests, but there is no lock file. | Environments are not yet fully reproducible. |
+| Packaging | Dependencies are split into `requirements-core.txt` (baseline), `requirements-optional.txt` (experimental semantic/vector), and a pinned `requirements.lock` for the baseline. | The baseline is now reproducible; the optional stack remains unpinned. A fixture *export* for end-to-end regression is still absent (unit fixtures exist in `tests/`). |
 
 ## Recommended development order
 
-1. Add a lock file and a fixture export so the validated schema and search
-   behaviour are regression-tested.
+1. Add a fixture *export* so the validated schema and search behaviour are
+   regression-tested end to end. (A pinned `requirements.lock` for the baseline
+   now exists; the `tests/` fixtures cover the store contract but not a full
+   on-disk export.)
 2. Decide whether `ai_chunks.json` should be enabled by default for a target
    export; it is wired into the pipeline but remains opt-in because it can be
    large.

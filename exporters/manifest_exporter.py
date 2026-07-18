@@ -26,7 +26,7 @@ from util.filesystem import FileSystem
 class ManifestExporter(object):
 
 
-    VERSION = "1.0.0"
+    VERSION = "1.1.0"
 
 
 
@@ -153,10 +153,20 @@ class ManifestExporter(object):
         )
 
 
+        # Keep the project-domain identity for consumers of manifest 1.0 while
+        # also recording the original input path used for provenance.
         info["domain_file"] = str(
 
             self.program
             .getDomainFile()
+
+        )
+
+
+        info["source_path"] = str(
+
+            self.program
+            .getExecutablePath()
 
         )
 
@@ -177,7 +187,46 @@ class ManifestExporter(object):
         )
 
 
+        #
+        # Input-file hashes Ghidra computed at import. These tie an export to a
+        # specific binary (chain of custody) and are the input file's own
+        # digests, not hashes of the export.
+        #
+
+        md5 = self.program.getExecutableMD5()
+
+        if md5:
+
+            info["md5"] = str(md5)
+
+
+        sha256 = self.executable_sha256()
+
+        if sha256:
+
+            info["sha256"] = str(sha256)
+
+
         return info
+
+
+    def executable_sha256(self):
+
+        #
+        # getExecutableSHA256 exists in modern Ghidra; guard older builds so a
+        # missing getter degrades to "no sha256" rather than aborting.
+        #
+
+        try:
+
+            return (
+                self.program
+                .getExecutableSHA256()
+            )
+
+        except Exception:
+
+            return None
 
 
     # --------------------------------------------------------
@@ -231,9 +280,18 @@ class ManifestExporter(object):
 
         return {
 
+            # ``name`` is retained for manifest 1.0 consumers. It may contain
+            # Ghidra's Java representation; new consumers should use ``id``.
             "name":
                 str(
                     compiler
+                ),
+
+
+            "id":
+                str(
+                    compiler
+                    .getCompilerSpecID()
                 )
 
         }

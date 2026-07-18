@@ -30,7 +30,7 @@ are still attempted.
 
 | Stage | Source | Output | Contents |
 | --- | --- | --- | --- |
-| Manifest | `ManifestExporter` | `manifest.json` | Binary name, domain file, image base, executable format, language/compiler, memory blocks, function count. |
+| Manifest | `ManifestExporter` | `manifest.json` | Binary name, project domain file, original source path, input hashes when available, image base, executable format, language/compiler IDs, memory blocks, function count. |
 | Memory | `MemoryExporter` | `memory_map.json` | Block ranges, permissions, initialization, mapping, source, comment. |
 | Imports/exports | `ImportExporter` | `imports.json`, `exports.json` | External functions and their caller references; external entry-point symbols. |
 | Types | `DataTypeExporter` | `types/*.json` | Structures, unions, enums, and typedefs. |
@@ -48,6 +48,11 @@ The enabled flags in `Config` control the memory/import/type/global/string/
 callgraph/decompiler/xref/comment collection stages.  Functions and the four
 derived stages are currently always invoked by `pipeline.py`; this is a known
 implementation detail rather than a configurable feature.
+
+Manifest exporter version 1.1 adds `binary.source_path`, optional input-file
+`md5`/`sha256` values, and `compiler.id`. It retains `binary.domain_file` and
+`compiler.name` for compatibility with 1.0 consumers. New consumers should use
+the stable compiler ID and treat the Java-style compiler name as legacy data.
 
 ## Per-function record
 
@@ -90,7 +95,7 @@ can create further files in the same export folder:
 | `tools/investigation_memory.py` | `investigation_memory.json` |
 | `tools/start_investigation.py` | `investigation_session.json` |
 | `tools/function_annotations.py` | `annotations/function_names.json`, `annotations/function_names.md` |
-| `tools/build_local_index.py` | `local_evidence.sqlite3` (optional, derived FTS5 index) |
+| `tools/build_local_index.py` | `local_evidence.sqlite3` (optional, derived FTS5 index; trigram tokenizer for substring body search) |
 | `tools/generate_evidence_pack.py` | `evidence_packs/<topic>.json` (derived binary + Media review pack) |
 | `tools/build_class_registry.py` | `class_registry.json` (derived class/RTTI/vtable review registry; vtable ownership only from explicit accepted evidence) |
 | `tools/build_name_review_queue.py` | `name_review_queue.json` (derived, non-promoting direct import/resource naming candidates) |
