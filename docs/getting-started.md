@@ -147,6 +147,8 @@ revhub overnight --provider ollama `
 Before leaving it unattended, follow the complete [overnight local-model
 quick start](autonomous-agent.md) for provider setup, bounded run settings,
 monitoring, Windows sleep, resume behaviour, morning review, and disposal.
+For a shorter, plain-English walkthrough from first test to stronger-model
+review, see [Your first automated AI pass](first-automated-ai-pass.md).
 
 Optional semantic search now uses one portable per-export backend:
 
