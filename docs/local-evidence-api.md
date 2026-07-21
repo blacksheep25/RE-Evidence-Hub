@@ -135,9 +135,12 @@ Accepted annotation names and their evidence are included in results; an LLM
 or heuristic suggestion is never presented as an accepted name.
 
 For isolated unattended naming runs, use `binary_candidate_page` to retrieve a
-bounded, cursor-based review batch. Its triage score is only a workload hint;
-call `binary_lookup` to verify raw evidence before the reviewer-only
-`binary_review_candidate` action can accept or reject a candidate.
+bounded, cursor-based review batch. Start with `binary_candidate_preflight` to
+create a local deterministic validation and duplicate-clustering artifact, then
+use `binary_review_brief` before requesting a larger lookup. Triage scores and
+preflight buckets are workload hints, not grounds to accept a name. The
+reviewer-only `binary_review_candidate` action may accept, reject, or defer a
+candidate.
 
 ## In-process Python tools
 

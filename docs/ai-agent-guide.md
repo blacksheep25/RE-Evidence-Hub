@@ -17,7 +17,8 @@ not facts.
 - Use `lookup`, then follow only relevant callers/callees.
 - Preserve addresses and distinguish raw, accepted, and proposed names.
 - For large candidate runs, page candidates in small batches and cap decompiler
-  text; the candidate's own confidence and triage order are not evidence.
+  text. Run candidate preflight and use compact review briefs first; the
+  candidate's own confidence and triage order are not evidence.
 - Check assembly/xrefs for critical branches, sizes, and data flow.
 - State confidence, unknowns, and the next verification action.
 - Never dump the whole export into context.

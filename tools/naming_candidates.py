@@ -9,6 +9,7 @@ from __future__ import annotations
 import base64
 import binascii
 import datetime
+import hashlib
 import json
 import os
 import tempfile
@@ -16,12 +17,14 @@ from typing import Any, Dict
 
 from tools.function_annotations import annotate
 from tools.investigation_ledger import run_directory
-from tools.agent_evidence import validate_annotation_proposal, verify_evidence_refs
+from tools.agent_evidence import grounded_evidence_values, validate_annotation_proposal, verify_evidence_refs
 from tools.file_lock import locked_file
 
 
 FILE_NAME = "name_candidates.json"
 SCHEMA_VERSION = 1
+PREFLIGHT_FILE_NAME = "candidate_preflight.json"
+PREFLIGHT_SCHEMA_VERSION = 1
 
 
 def _utc_now() -> str:
@@ -30,6 +33,10 @@ def _utc_now() -> str:
 
 def candidate_path(export_path: str, run_id: str) -> str:
     return os.path.join(run_directory(export_path, run_id), FILE_NAME)
+
+
+def preflight_path(export_path: str, run_id: str) -> str:
+    return os.path.join(run_directory(export_path, run_id), PREFLIGHT_FILE_NAME)
 
 
 def load(export_path: str, run_id: str) -> Dict[str, Any]:
@@ -49,6 +56,36 @@ def _save(export_path: str, run_id: str, data: Dict[str, Any]) -> None:
     os.makedirs(directory, exist_ok=True)
     data["updated_utc"] = _utc_now()
     handle = tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=directory, prefix=".candidates-", suffix=".tmp", delete=False)
+    try:
+        json.dump(data, handle, indent=2, sort_keys=True)
+        handle.flush()
+        os.fsync(handle.fileno())
+        handle.close()
+        os.replace(handle.name, path)
+    finally:
+        if os.path.exists(handle.name):
+            os.remove(handle.name)
+
+
+def _load_preflight(export_path: str, run_id: str) -> Dict[str, Any]:
+    path = preflight_path(export_path, run_id)
+    if not os.path.isfile(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as handle:
+            data = json.load(handle)
+    except (json.JSONDecodeError, OSError, UnicodeError, ValueError):
+        return {}
+    if data.get("schema_version") != PREFLIGHT_SCHEMA_VERSION or not isinstance(data.get("entries"), dict):
+        return {}
+    return data
+
+
+def _save_preflight(export_path: str, run_id: str, data: Dict[str, Any]) -> None:
+    path = preflight_path(export_path, run_id)
+    directory = os.path.dirname(path)
+    os.makedirs(directory, exist_ok=True)
+    handle = tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=directory, prefix=".preflight-", suffix=".tmp", delete=False)
     try:
         json.dump(data, handle, indent=2, sort_keys=True)
         handle.flush()
@@ -112,6 +149,110 @@ def _triage(entry: Dict[str, Any]) -> Dict[str, Any]:
     return {"score": score, "reasons": reasons}
 
 
+def _generic_name(entry: Dict[str, Any]) -> bool:
+    generic_terms = ("memory", "resource", "invalid", "error", "exception", "helper", "handler", "utility")
+    proposed = str(entry.get("proposed_name", "")).lower()
+    return any(term in proposed for term in generic_terms)
+
+
+def _candidate_fingerprint(data: Dict[str, Any]) -> str:
+    """Hash proposal content while deliberately excluding mutable review state."""
+    entries = {
+        address: {
+            key: entry.get(key)
+            for key in ("proposed_name", "confidence", "evidence", "evidence_refs", "rationale", "function_identity")
+        }
+        for address, entry in sorted((data.get("entries", {}) or {}).items())
+    }
+    payload = json.dumps(entries, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def preflight(store: Any, run_id: str, refresh: bool = False) -> Dict[str, Any]:
+    """Build a local-only validation and clustering pass before model review."""
+    with locked_file(candidate_path(store.export_path, run_id)):
+        candidates = load(store.export_path, run_id)
+    existing = _load_preflight(store.export_path, run_id)
+    candidate_revision = int(candidates.get("revision", 0))
+    candidate_fingerprint = _candidate_fingerprint(candidates)
+    if not refresh and existing.get("candidate_fingerprint") == candidate_fingerprint:
+        return existing
+
+    name_groups: Dict[str, list] = {}
+    for address, entry in candidates["entries"].items():
+        key = str(entry.get("proposed_name", "")).strip().lower()
+        if key:
+            name_groups.setdefault(key, []).append(address)
+
+    entries: Dict[str, Any] = {}
+    counts = {"review": 0, "parked": 0, "invalid": 0, "stale": 0}
+    for address, entry in candidates["entries"].items():
+        lookup = store.lookup(address, include_decompiler=False, include_assembly=False)
+        refs = list(entry.get("evidence_refs", []) or [])
+        grounded, missing = verify_evidence_refs(lookup, refs)
+        policy_valid, policy_reason = validate_annotation_proposal(
+            entry.get("proposed_name", ""), entry.get("confidence", ""),
+            entry.get("evidence", []) or [], entry.get("rationale", ""), refs,
+        )
+        saved_hash = str(entry.get("function_identity", {}).get("assembly_sha256", ""))
+        current_hash = str(lookup.get("function", {}).get("hash", ""))
+        hash_matches = not (saved_hash and current_hash) or saved_hash == current_hash
+        duplicate_count = len(name_groups.get(str(entry.get("proposed_name", "")).strip().lower(), []))
+        if not hash_matches:
+            bucket = "stale"
+        elif not grounded or not policy_valid:
+            bucket = "invalid"
+        elif _generic_name(entry) and duplicate_count >= 3:
+            bucket = "parked"
+        else:
+            bucket = "review"
+        counts[bucket] += 1
+        entries[address] = {
+            "bucket": bucket,
+            "hash_matches": hash_matches,
+            "grounded": grounded,
+            "missing_refs": missing,
+            "policy_valid": policy_valid,
+            "policy_reason": policy_reason,
+            "duplicate_proposed_name_count": duplicate_count,
+        }
+
+    clusters = [
+        {"proposed_name": candidates["entries"][addresses[0]].get("proposed_name", ""), "count": len(addresses), "addresses": sorted(addresses)[:20]}
+        for addresses in name_groups.values() if len(addresses) >= 3
+    ]
+    clusters.sort(key=lambda item: (-item["count"], item["proposed_name"].lower()))
+    result = {
+        "schema_version": PREFLIGHT_SCHEMA_VERSION,
+        "run_id": run_id,
+        "candidate_revision": candidate_revision,
+        "candidate_fingerprint": candidate_fingerprint,
+        "created_utc": _utc_now(),
+        "summary": {"candidate_count": len(entries), "buckets": counts, "duplicate_clusters": len(clusters)},
+        "duplicate_name_clusters": clusters[:100],
+        "entries": entries,
+    }
+    with locked_file(preflight_path(store.export_path, run_id)):
+        previous = _load_preflight(store.export_path, run_id)
+        result["revision"] = int(previous.get("revision", 0)) + 1
+        _save_preflight(store.export_path, run_id, result)
+    return result
+
+
+def _current_preflight(export_path: str, run_id: str, candidates: Dict[str, Any]) -> Dict[str, Any]:
+    value = _load_preflight(export_path, run_id)
+    return value if value.get("candidate_fingerprint") == _candidate_fingerprint(candidates) else {}
+
+
+def _compact_text(value: Any, limit: int) -> str:
+    text = str(value or "")
+    return text if len(text) <= limit else text[:limit] + "..."
+
+
+def _compact_evidence(items: list, limit: int = 8) -> list:
+    return [_compact_text(item, 360) for item in (items or [])[:limit]]
+
+
 def _encode_cursor(score: int, address: str) -> str:
     value = json.dumps({"score": score, "address": address}, separators=(",", ":")).encode("utf-8")
     return base64.urlsafe_b64encode(value).decode("ascii").rstrip("=")
@@ -127,16 +268,22 @@ def _decode_cursor(cursor: str) -> tuple:
 
 
 def page(export_path: str, run_id: str, status: str = "pending",
-         limit: int = 25, cursor: str = "") -> Dict[str, Any]:
+         limit: int = 25, cursor: str = "", bucket: str = "all") -> Dict[str, Any]:
     """Return a stable page ordered by an explicitly untrusted triage heuristic."""
-    if status not in ("pending", "accepted", "rejected", "all"):
+    if status not in ("pending", "accepted", "rejected", "deferred", "all"):
         raise ValueError("Invalid candidate status: " + status)
+    if bucket not in ("review", "parked", "invalid", "stale", "all"):
+        raise ValueError("Invalid candidate preflight bucket: " + bucket)
     limit = max(1, min(int(limit), 100))
     data = load(export_path, run_id)
+    preflight = _current_preflight(export_path, run_id, data)
+    if bucket != "all" and not preflight:
+        raise ValueError("No current candidate preflight; call binary_candidate_preflight first")
     entries = [
-        dict(entry, triage=_triage(entry))
-        for _, entry in data["entries"].items()
-        if status == "all" or entry.get("status") == status
+        dict(entry, triage=_triage(entry), preflight=preflight.get("entries", {}).get(address))
+        for address, entry in data["entries"].items()
+        if (status == "all" or entry.get("status") == status)
+        and (bucket == "all" or preflight.get("entries", {}).get(address, {}).get("bucket") == bucket)
     ]
     entries.sort(key=lambda entry: (-entry["triage"]["score"], entry.get("address", "")))
     total_count = len(entries)
@@ -156,14 +303,71 @@ def page(export_path: str, run_id: str, status: str = "pending",
         "returned_count": len(candidates),
         "remaining_count": len(entries) - len(candidates),
         "next_cursor": next_cursor or None,
+        "preflight": {"available": bool(preflight), "bucket": bucket},
         "triage_warning": "Triage scores use unverified candidate metadata only; verify raw function evidence before review.",
         "candidates": candidates,
     }
 
 
+def review_brief(store: Any, run_id: str, address: str,
+                 max_decompiler_chars: int = 4000, relationship_limit: int = 8) -> Dict[str, Any]:
+    """Return only the evidence needed for a low-token candidate review."""
+    resolved = store.resolve_address(address)
+    candidates = load(store.export_path, run_id)
+    candidate = candidates["entries"].get(resolved)
+    if not candidate:
+        raise ValueError("No candidate for {} in run {}".format(resolved, run_id))
+    lookup = store.lookup(resolved, include_decompiler=True, include_assembly=False, evidence_limit=12)
+    refs = list(candidate.get("evidence_refs", []) or [])
+    grounded, missing = verify_evidence_refs(lookup, refs)
+    code = str((lookup.get("decompiler", {}) or {}).get("c_code", ""))
+    max_decompiler_chars = max(0, min(int(max_decompiler_chars), 12000))
+    decompiler = {
+        "success": bool((lookup.get("decompiler", {}) or {}).get("success")),
+        "c_code": code[:max_decompiler_chars],
+        "c_code_truncated": len(code) > max_decompiler_chars,
+        "original_c_code_chars": len(code),
+    }
+    relationship_limit = max(1, min(int(relationship_limit), 20))
+    relationships = lookup.get("relationships", {}) or {}
+    compact_relationships = {
+        direction: [
+            {key: item.get(key) for key in ("address", "name", "raw_name", "active_name", "external") if item.get(key) not in (None, "")}
+            for item in (relationships.get(direction, []) or [])[:relationship_limit]
+        ]
+        for direction in ("callers", "callees")
+    }
+    current_preflight = _current_preflight(store.export_path, run_id, candidates)
+    return {
+        "run_id": run_id,
+        "candidate": {
+            "address": candidate.get("address", ""),
+            "raw_name": candidate.get("raw_name", ""),
+            "proposed_name": candidate.get("proposed_name", ""),
+            "confidence": candidate.get("confidence", ""),
+            "evidence_refs": _compact_evidence(candidate.get("evidence_refs", [])),
+            "evidence": _compact_evidence(candidate.get("evidence", [])),
+            "rationale": _compact_text(candidate.get("rationale", ""), 600),
+            "status": candidate.get("status", ""),
+        },
+        "preflight": current_preflight.get("entries", {}).get(resolved),
+        "function": {
+            key: lookup.get("function", {}).get(key)
+            for key in ("address", "raw_name", "active_name", "namespace", "signature", "size", "hash")
+        },
+        "grounding": {"all_refs_grounded": grounded, "missing_refs": missing, "matched_raw_values": _compact_evidence(grounded_evidence_values(lookup, refs), 12)},
+        "evidence": {
+            "strings": (lookup.get("evidence", {}) or {}).get("strings", [])[:12],
+            "imports": (lookup.get("evidence", {}) or {}).get("imports", [])[:12],
+        },
+        "relationships": compact_relationships,
+        "decompiler": decompiler,
+    }
+
+
 def review(store: Any, run_id: str, address: str, action: str, note: str = "") -> Dict[str, Any]:
-    if action not in ("accept", "reject"):
-        raise ValueError("action must be accept or reject")
+    if action not in ("accept", "reject", "defer"):
+        raise ValueError("action must be accept, reject, or defer")
     resolved = store.resolve_address(address)
     with locked_file(candidate_path(store.export_path, run_id)):
         data = load(store.export_path, run_id)
@@ -195,10 +399,12 @@ def review(store: Any, run_id: str, address: str, action: str, note: str = "") -
                 evidence=entry.get("evidence", []), rationale=entry.get("rationale", ""),
             )
             store.reload_annotations()
-        else:
+        elif action == "reject":
             result = {"address": resolved, "name": entry.get("proposed_name", ""), "status": "rejected"}
+        else:
+            result = {"address": resolved, "name": entry.get("proposed_name", ""), "status": "deferred"}
 
-        entry["status"] = "accepted" if action == "accept" else "rejected"
+        entry["status"] = {"accept": "accepted", "reject": "rejected", "defer": "deferred"}[action]
         entry["review_note"] = note or ""
         entry["reviewed_utc"] = _utc_now()
         data["entries"][resolved] = entry

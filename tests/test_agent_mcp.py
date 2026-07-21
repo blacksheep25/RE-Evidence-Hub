@@ -108,7 +108,7 @@ class AgentMcpTests(unittest.TestCase):
         result = mcp.handle(self.store, {"jsonrpc": "2.0", "id": 0, "method": "tools/list"})["result"]
         tools = {t["name"]: t for t in result["tools"]}
         names = set(tools)
-        self.assertTrue({"binary_annotate", "binary_propose_name", "binary_candidate_queue", "binary_candidate_page", "binary_review_candidate", "binary_next_target", "binary_progress", "binary_network_map"} <= names)
+        self.assertTrue({"binary_annotate", "binary_propose_name", "binary_candidate_queue", "binary_candidate_page", "binary_candidate_preflight", "binary_review_brief", "binary_review_candidate", "binary_next_target", "binary_progress", "binary_network_map"} <= names)
         schema = tools["binary_annotate"]["inputSchema"]
         self.assertEqual(["medium", "high"], schema["properties"]["confidence"]["enum"])
         self.assertTrue({"evidence", "rationale", "evidence_refs"} <= set(schema["required"]))
@@ -172,6 +172,35 @@ class AgentMcpTests(unittest.TestCase):
         self.assertEqual("load ", payload["decompiler"]["c_code"])
         self.assertTrue(payload["decompiler"]["c_code_truncated"])
         self.assertEqual(len("load login_panel.asset;"), payload["decompiler"]["original_c_code_chars"])
+
+    def test_preflight_brief_and_deferred_review_preserve_candidate(self):
+        self.store.agent_run_id = "night-preflight"
+        proposed, failed = _call(self.store, "binary_propose_name", {
+            "address": "00402000", "name": "Net_Send", "confidence": "high",
+            "evidence": ["Calls the send import"], "evidence_refs": ["send"],
+            "rationale": "The direct send import establishes network transmit behavior.",
+        })
+        self.assertFalse(failed)
+        self.assertTrue(proposed["accepted"])
+        preflight, failed = _call(self.store, "binary_candidate_preflight")
+        self.assertFalse(failed)
+        self.assertEqual(1, preflight["summary"]["candidate_count"])
+        self.assertEqual(1, preflight["summary"]["buckets"]["review"])
+        page, failed = _call(self.store, "binary_candidate_page", {"bucket": "review"})
+        self.assertFalse(failed)
+        self.assertEqual(1, page["returned_count"])
+        brief, failed = _call(self.store, "binary_review_brief", {"address": "00402000", "max_decompiler_chars": 4})
+        self.assertFalse(failed)
+        self.assertTrue(brief["grounding"]["all_refs_grounded"])
+        self.assertIn("send", brief["grounding"]["matched_raw_values"])
+        self.assertTrue(brief["decompiler"]["c_code_truncated"])
+        deferred, failed = _call(self.store, "binary_review_candidate", {"address": "00402000", "action": "defer", "note": "Needs packet caller context"})
+        self.assertFalse(failed)
+        self.assertEqual("deferred", deferred["candidate_status"])
+        self.assertIsNone(self.store.lookup("00402000", include_decompiler=False)["function"]["active_name"])
+        deferred_page, failed = _call(self.store, "binary_candidate_page", {"status": "deferred", "bucket": "review"})
+        self.assertFalse(failed)
+        self.assertEqual(1, deferred_page["total_count"])
 
     def test_candidate_rejection_never_promotes(self):
         self.store.agent_run_id = "night-reject"

@@ -80,6 +80,17 @@ def verify_evidence_refs(lookup: Dict[str, Any], refs: List[str]) -> Tuple[bool,
     return (len(missing) == 0, missing)
 
 
+def grounded_evidence_values(lookup: Dict[str, Any], refs: List[str]) -> List[str]:
+    """Return the raw discrete values that ground one or more candidate refs."""
+    normalized = [str(ref).strip().lower() for ref in (refs or []) if len(str(ref).strip()) >= MIN_REF_LEN]
+    if not normalized:
+        return []
+    return [
+        value for value in evidence_values(lookup)
+        if any(_contains_token(value.lower(), ref) for ref in normalized)
+    ]
+
+
 def validate_annotation_proposal(name: str, confidence: str, evidence: List[str],
                                  rationale: str, refs: List[str]) -> Tuple[bool, str]:
     """Apply the acceptance policy after refs have been grounded.

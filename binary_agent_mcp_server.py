@@ -126,7 +126,7 @@ TOOLS = [
     {
         "name": "binary_candidate_queue",
         "description": "List naming candidates in this isolated agent run; defaults to pending candidates.",
-        "inputSchema": {"type": "object", "properties": {"status": {"type": "string", "enum": ["pending", "accepted", "rejected", "all"]}}},
+        "inputSchema": {"type": "object", "properties": {"status": {"type": "string", "enum": ["pending", "accepted", "rejected", "deferred", "all"]}}},
     },
     {
         "name": "binary_candidate_page",
@@ -134,20 +134,39 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "status": {"type": "string", "enum": ["pending", "accepted", "rejected", "all"], "default": "pending"},
+                "status": {"type": "string", "enum": ["pending", "accepted", "rejected", "deferred", "all"], "default": "pending"},
                 "limit": {"type": "integer", "minimum": 1, "maximum": 100, "default": 25},
                 "cursor": {"type": "string", "description": "Opaque next_cursor value from the previous page."},
+                "bucket": {"type": "string", "enum": ["review", "parked", "invalid", "stale", "all"], "default": "all"},
             },
         },
     },
     {
-        "name": "binary_review_candidate",
-        "description": "Reviewer-only: accept a pending candidate into the reversible annotation overlay, or reject it.",
+        "name": "binary_candidate_preflight",
+        "description": "Build or return a local deterministic validation, duplicate-clustering, and review-bucketing artifact. It never accepts, rejects, or edits candidates.",
+        "inputSchema": {"type": "object", "properties": {"refresh": {"type": "boolean", "default": False}}},
+    },
+    {
+        "name": "binary_review_brief",
+        "description": "Return a compact, grounded evidence brief for one pending candidate. Request full binary_lookup or assembly only when this brief is insufficient.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "address": {"type": "string"},
-                "action": {"type": "string", "enum": ["accept", "reject"]},
+                "max_decompiler_chars": {"type": "integer", "minimum": 0, "maximum": 12000, "default": 4000},
+                "relationship_limit": {"type": "integer", "minimum": 1, "maximum": 20, "default": 8},
+            },
+            "required": ["address"],
+        },
+    },
+    {
+        "name": "binary_review_candidate",
+        "description": "Reviewer-only: accept a pending candidate into the reversible annotation overlay, reject it, or defer it for later evidence collection.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "address": {"type": "string"},
+                "action": {"type": "string", "enum": ["accept", "reject", "defer"]},
                 "note": {"type": "string"},
             },
             "required": ["address", "action"],
@@ -320,7 +339,14 @@ def call_tool(store, name, arguments):
     if name == "binary_candidate_page":
         return naming_candidates.page(
             store.export_path, _run_id(store), arguments.get("status", "pending"),
-            arguments.get("limit", 25), arguments.get("cursor", ""),
+            arguments.get("limit", 25), arguments.get("cursor", ""), arguments.get("bucket", "all"),
+        )
+    if name == "binary_candidate_preflight":
+        return naming_candidates.preflight(store, _run_id(store), bool(arguments.get("refresh", False)))
+    if name == "binary_review_brief":
+        return naming_candidates.review_brief(
+            store, _run_id(store), arguments.get("address", ""),
+            arguments.get("max_decompiler_chars", 4000), arguments.get("relationship_limit", 8),
         )
     if name == "binary_review_candidate":
         return naming_candidates.review(store, _run_id(store), arguments.get("address", ""), arguments.get("action", ""), arguments.get("note", ""))
