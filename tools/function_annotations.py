@@ -190,7 +190,8 @@ def command_init(args):
 
 
 def annotate(export_path, address, name, confidence, status="accepted",
-             source="manual-analysis", evidence=None, rationale="", create=True):
+             source="manual-analysis", evidence=None, rationale="", reviewer="",
+             create=True):
     """Record one evidence-backed function-name decision in the reversible overlay.
 
     Programmatic entry point shared by the ``set`` CLI command and agent
@@ -211,18 +212,28 @@ def annotate(export_path, address, name, confidence, status="accepted",
         entries = overlay.setdefault("entries", {})
         entry = entries.setdefault(address, {"decisions": []})
 
+        now = utc_now()
         decision = {
             "name": name,
             "status": status,
             "confidence": confidence,
             "source": source,
-            "created_utc": utc_now(),
+            "reviewer": reviewer or "",
+            "created_utc": now,
             "function_identity": function_identity(function),
             "evidence": list(evidence or []),
             "rationale": rationale or "",
         }
         entry.setdefault("decisions", []).append(decision)
         if status == "accepted":
+            previous_active = entry.get("active_name", "")
+            if previous_active and previous_active != name:
+                for previous in reversed(entry["decisions"][:-1]):
+                    if previous.get("name") == previous_active and previous.get("status") == "accepted":
+                        previous["status"] = "superseded"
+                        previous["superseded_utc"] = now
+                        previous["superseded_by"] = name
+                        break
             entry["active_name"] = name
 
         overlay["revision"] = int(overlay.get("revision", 0)) + 1
@@ -238,16 +249,54 @@ def annotate(export_path, address, name, confidence, status="accepted",
     }
 
 
+def history(export_path, address):
+    """Return the complete, non-promoting decision history for one function."""
+
+    export_path, manifest, index = load_export(export_path)
+    try:
+        overlay = load_overlay(export_path, manifest, create=False)
+    except ValueError as error:
+        if not str(error).startswith("No annotation overlay found."):
+            raise
+        overlay = new_overlay(manifest)
+    address, function = load_function(export_path, index, address)
+    entry = overlay.get("entries", {}).get(address, {})
+    current_identity = function_identity(function)
+    decisions = []
+    for decision in entry.get("decisions", []):
+        item = dict(decision)
+        item["is_active"] = item.get("name") == entry.get("active_name") and item.get("status") == "accepted"
+        saved_identity = item.get("function_identity", {})
+        item["evidence_stale"] = bool(
+            saved_identity.get("assembly_sha256")
+            and saved_identity.get("assembly_sha256") != current_identity.get("assembly_sha256")
+        )
+        decisions.append(item)
+    return {
+        "address": address,
+        "raw_name": function.get("name", ""),
+        "active_name": entry.get("active_name"),
+        "current_function_identity": current_identity,
+        "overlay_revision": overlay.get("revision", 0),
+        "decisions": decisions,
+    }
+
+
 def command_set(args):
     # CLI keeps requiring an explicit `init` (create=False); agent callers use
     # annotate(create=True) directly.
     result = annotate(
         args.export_path, args.address, args.name, args.confidence,
         status=args.status, source=args.source,
-        evidence=args.evidence, rationale=args.rationale, create=False,
+        evidence=args.evidence, rationale=args.rationale, reviewer=args.reviewer,
+        create=False,
     )
     print("{} -> {} ({}, {})".format(
         result["address"], result["name"], result["confidence"], result["status"]))
+
+
+def command_history(args):
+    print(json.dumps(history(args.export_path, args.address), indent=2, sort_keys=True))
 
 
 def command_list(args):
@@ -324,9 +373,15 @@ def build_parser():
     set_name.add_argument("--confidence", choices=CONFIDENCE_LEVELS, required=True)
     set_name.add_argument("--status", choices=STATUS_LEVELS, default="accepted")
     set_name.add_argument("--source", default="manual-analysis")
+    set_name.add_argument("--reviewer", default="", help="Optional reviewer identity recorded with this decision.")
     set_name.add_argument("--evidence", action="append", help="Repeat for each concrete evidence item.")
     set_name.add_argument("--rationale", default="")
     set_name.set_defaults(handler=command_set)
+
+    history_command = subparsers.add_parser("history", help="Show the decision and correction history for one function.")
+    history_command.add_argument("export_path")
+    history_command.add_argument("address")
+    history_command.set_defaults(handler=command_history)
 
     list_command = subparsers.add_parser("list", help="List active accepted names.")
     list_command.add_argument("export_path")

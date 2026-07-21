@@ -2,7 +2,9 @@
 
 Raw exporter JSON is immutable. Mutable/rebuildable analysis state includes
 annotations, autonomous run ledgers/candidates, runtime observations, protocol
-contracts, and semantic metadata.
+contracts, semantic metadata, and comparison reports. Comparison reports are
+fully regenerated from two raw exports; they do not promote a match into an
+accepted annotation.
 
 Writers use an adjacent advisory `.lock` file around the complete
 read-modify-write transaction, flush a same-directory temporary file, and use

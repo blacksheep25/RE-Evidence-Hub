@@ -116,6 +116,7 @@ can create further files in the same export folder:
 | Legacy experimental vector scripts | Deprecated compatibility/reference paths. |
 | `tools/network_capture.py` | `derived/network/runtime_capture.json` |
 | `tools/protocol_contract.py` | `derived/network/protocol_contract.json` |
+| `tools/export_comparison.py` | `derived/comparisons/<baseline>.json` (bounded exact-hash matches and non-promoting structural leads) |
 
 ## Host entry points
 
@@ -131,6 +132,7 @@ can create further files in the same export folder:
 | `revhub overnight --model <model>` | Runs a bounded local naming pass into isolated candidates. | Core export, Requests, local endpoint. |
 | `revhub network-capture <file>` | Normalises authorised runtime frames. | Core export and JSON/JSONL/CSV input. |
 | `revhub protocol-contract` | Creates/validates a reviewed recreation contract. | Core export; runtime observations optional. |
+| `revhub compare <baseline> <candidate>` | Compares two exports and writes exact-hash matches plus bounded structural leads. | Two core exports. |
 | `python binary_agent_server.py --export <export>` | Starts the local evidence JSON API on `127.0.0.1:5006`. | Core export and Flask; semantic routes load optional dependencies only when called. |
 | `python binary_agent_mcp_server.py --export <export>` | Starts the stdio MCP evidence, isolated-proposal, and review adapter. | Core export only. |
 | `python tools/build_local_index.py <export>` | Builds the optional fast local FTS5 body-search index. | Core export. |

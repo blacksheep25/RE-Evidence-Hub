@@ -168,6 +168,7 @@ TOOLS = [
                 "address": {"type": "string"},
                 "action": {"type": "string", "enum": ["accept", "reject", "defer"]},
                 "note": {"type": "string"},
+                "reviewer": {"type": "string", "description": "Optional reviewer identity retained with an accepted correction."},
             },
             "required": ["address", "action"],
         },
@@ -190,6 +191,7 @@ TOOLS = [
                 "evidence": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}, "description": "Human-readable justification lines."},
                 "evidence_refs": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 3}, "description": "Concrete import, string, or named-relationship tokens grounded in this function."},
                 "rationale": {"type": "string", "minLength": 12},
+                "reviewer": {"type": "string", "description": "Optional reviewer identity retained with this accepted decision."},
             },
             "required": ["address", "name", "confidence", "evidence", "evidence_refs", "rationale"],
         },
@@ -282,6 +284,7 @@ def _annotate_guarded(store, arguments):
         source="autonomous-agent",
         evidence=arguments.get("evidence", []) or [],
         rationale=arguments.get("rationale", ""),
+        reviewer=arguments.get("reviewer", ""),
     )
     # Make the new name visible to this same session, then record progress.
     store.reload_annotations()
@@ -349,7 +352,10 @@ def call_tool(store, name, arguments):
             arguments.get("max_decompiler_chars", 4000), arguments.get("relationship_limit", 8),
         )
     if name == "binary_review_candidate":
-        return naming_candidates.review(store, _run_id(store), arguments.get("address", ""), arguments.get("action", ""), arguments.get("note", ""))
+        return naming_candidates.review(
+            store, _run_id(store), arguments.get("address", ""),
+            arguments.get("action", ""), arguments.get("note", ""), arguments.get("reviewer", ""),
+        )
     if name == "binary_annotate":
         return _annotate_guarded(store, arguments)
     if name == "binary_next_target":

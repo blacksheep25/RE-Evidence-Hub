@@ -235,6 +235,7 @@ class AgentMcpTests(unittest.TestCase):
             "address": "00402000", "name": "Net_Send", "confidence": "high",
             "evidence": ["Calls the send import"], "evidence_refs": ["send"],
             "rationale": "The direct send import establishes network transmit behavior.",
+            "reviewer": "test-reviewer",
         })
         self.assertTrue(payload["accepted"])
         # Visible in the same session (reload happened) and durable on disk.
@@ -242,6 +243,7 @@ class AgentMcpTests(unittest.TestCase):
         with open(os.path.join(self.temporary.name, "annotations", "function_names.json"), encoding="utf-8") as handle:
             overlay = json.load(handle)
         self.assertEqual("Net_Send", overlay["entries"]["00402000"]["active_name"])
+        self.assertEqual("test-reviewer", overlay["entries"]["00402000"]["decisions"][0]["reviewer"])
         self.assertFalse(any(name.startswith(".annotations-") for name in os.listdir(os.path.join(self.temporary.name, "annotations"))))
 
     def test_guarded_annotate_rejects_hallucinated_evidence(self):

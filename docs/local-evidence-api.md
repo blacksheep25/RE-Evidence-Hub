@@ -10,6 +10,12 @@ needs to query an export through a stable local URL. In-process Python code
 should usually use `tools/evidence_tools.py` directly so it does not depend on
 a background server or port.
 
+Accepted annotation decisions retain their cited evidence, rationale, source,
+and optional reviewer identity. Replacing an accepted name preserves the prior
+decision and marks it `superseded`; use
+`python tools/function_annotations.py history <export> <address>` to inspect
+the full correction history.
+
 ## Start the HTTP API
 
 ```powershell
@@ -123,6 +129,22 @@ python .\tools\generate_evidence_pack.py 'Title Login and Server Select' `
 The default output is `<export>\evidence_packs\<title>.json`. Treat it as a
 review artifact: if the binary export or accepted annotations change, rebuild
 the pack rather than editing it manually.
+
+## Compare exports and clone leads
+
+Use two completed exports to compare a rebuilt target with a reference build,
+or to find duplicate exported function hashes within either target:
+
+```powershell
+revhub compare .\project_exports\reference.exe .\project_exports\rebuilt.exe
+```
+
+The report is written under
+`<candidate>\derived\comparisons\<baseline>.json`. It separates exact exported
+function-hash matches from bounded structural leads that share imports,
+strings, and basic call/size shape. Structural leads never prove shared source
+or equivalent behaviour; inspect their concrete evidence before using them in
+a reconstruction.
 
 ## MCP adapter
 
