@@ -197,6 +197,14 @@ class LocalEvidenceStoreTests(unittest.TestCase):
         self.assertEqual(200, routes.status_code)
         self.assertTrue(any(item["route"] == "/lookup" for item in routes.get_json()["routes"]))
 
+    def test_http_api_does_not_expose_evidence_error_details(self):
+        temporary = self.make_export()
+        self.addCleanup(temporary.cleanup)
+        client = create_app(temporary.name).test_client()
+        response = client.post("/lookup", json={"address": "missing"})
+        self.assertEqual(400, response.status_code)
+        self.assertEqual("Invalid or unavailable evidence request.", response.get_json()["error"])
+
     def test_remote_http_api_requires_explicit_bind_and_bearer_token(self):
         with self.assertRaises(ValueError):
             _validate_bind("0.0.0.0", False, "token")

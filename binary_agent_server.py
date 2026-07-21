@@ -116,8 +116,9 @@ def create_app(export_path=None, remote_token=""):
             from tools.hybrid_search import HybridSearch
             semantic["service"] = HybridSearch(store.export_path)
             return semantic["service"]
-        except Exception as error:  # optional dependencies must not break core search
-            semantic["error"] = str(error)
+        except Exception:  # optional dependencies must not break core search
+            app.logger.warning("Optional semantic search is unavailable", exc_info=True)
+            semantic["error"] = "Optional semantic search is unavailable."
             raise RuntimeError(semantic["error"])
 
     @app.route("/", methods=["GET"])
@@ -143,7 +144,8 @@ def create_app(export_path=None, remote_token=""):
 
     @app.errorhandler(EvidenceError)
     def handle_evidence_error(error):
-        return _error(str(error), 400)
+        app.logger.info("Evidence request rejected: %s", error)
+        return _error("Invalid or unavailable evidence request.", 400)
 
     @app.errorhandler(404)
     def handle_not_found(error):
@@ -265,16 +267,16 @@ def create_app(export_path=None, remote_token=""):
         try:
             result = optional_semantic().semantic(data.get("query", ""), data.get("limit", 10))
             return jsonify({"query": data.get("query", ""), "results": result, "mode": "optional-semantic"})
-        except RuntimeError as error:
-            return _error("Optional semantic search is unavailable: {}".format(error), 503)
+        except RuntimeError:
+            return _error("Optional semantic search is unavailable.", 503)
 
     @app.route("/hybrid", methods=["POST"])
     def hybrid():
         data = _request_data()
         try:
             return jsonify({"query": data.get("query", ""), "result": optional_semantic().context(data.get("query", ""))})
-        except RuntimeError as error:
-            return _error("Optional semantic search is unavailable: {}".format(error), 503)
+        except RuntimeError:
+            return _error("Optional semantic search is unavailable.", 503)
 
     @app.route("/ask", methods=["POST"])
     def ask():
@@ -286,8 +288,8 @@ def create_app(export_path=None, remote_token=""):
                 "question": question,
                 "answer": "===== OPTIONAL SEMANTIC CONTEXT (NOT GROUND TRUTH) =====\n" + context[:12000],
             })
-        except RuntimeError as error:
-            return _error("Optional semantic search is unavailable: {}".format(error), 503)
+        except RuntimeError:
+            return _error("Optional semantic search is unavailable.", 503)
 
     return app
 
