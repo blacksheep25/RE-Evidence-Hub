@@ -133,6 +133,7 @@ For a first unattended local-model pass, follow the Windows-first
 [overnight quick start](docs/autonomous-agent.md). It covers model-server
 setup, a no-write dry run, explicit budgets, live logs, stop/resume behaviour,
 and separate morning review.
+New to the workflow? Start with [Your first automated AI pass](docs/first-automated-ai-pass.md).
 
 **Current export pointer.** `revhub use <export>` saves a pointer so every
 command defaults to that export instead of repeating a long `--export` path:

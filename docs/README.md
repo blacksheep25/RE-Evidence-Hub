@@ -1,6 +1,7 @@
 # Documentation
 
 - [Getting started](getting-started.md)
+- [Your first automated AI pass](first-automated-ai-pass.md)
 - [Projects and exports](projects-and-exports.md)
 - [Architecture](architecture.md)
 - [Current state](current-state.md)
