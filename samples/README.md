@@ -19,7 +19,7 @@ python .\tools\validate_export.py samples\tiny_export --full
 
 # One-off query, no server needed
 python .\tools\evidence_tools.py --export samples\tiny_export status
-python .\tools\evidence_tools.py --export samples\tiny_export lookup CPSTitle_ApplyLayout --no-decompiler
+python .\tools\evidence_tools.py --export samples\tiny_export lookup CExampleUi_ApplyLayout --no-decompiler
 
 # Or serve the HTTP API and query it
 python .\binary_agent_server.py --export samples\tiny_export
@@ -28,7 +28,7 @@ python .\binary_agent_server.py --export samples\tiny_export
 ```
 
 The `lookup` shows the annotation overlay in action: the raw Ghidra name is
-`FUN_00401000`, and the accepted, evidence-backed name `CPSTitle_ApplyLayout`
+`FUN_00401000`, and the accepted, evidence-backed name `CExampleUi_ApplyLayout`
 appears as `active_name`.
 
 ## What it demonstrates
@@ -36,7 +36,7 @@ appears as `active_name`.
 - **Accepted annotation overlay** — `00401000` carries an accepted name with
   evidence, so `active_name` overlays `raw_name`.
 - **Derived indexes** — `build_local_index.py`, `build_class_registry.py`, and
-  `build_name_review_queue.py` all run against it (the `.?AVCPSTitle@@` RTTI
+  `build_name_review_queue.py` all run against it (the `.?AVCExampleUi@@` RTTI
   string and the `send` import feed the class registry and review queue).
 - **Relationships and evidence** — `00401000` calls `00402000`, references the
   `login_panel.asset` string, and `00402000` references the `send` import.

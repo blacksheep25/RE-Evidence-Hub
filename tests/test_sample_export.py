@@ -32,9 +32,9 @@ class SampleExportTests(unittest.TestCase):
 
     def test_sample_export_overlays_accepted_name(self):
         store = LocalEvidenceStore(SAMPLE)
-        lookup = store.lookup("CPSTitle_ApplyLayout", include_decompiler=False)
+        lookup = store.lookup("CExampleUi_ApplyLayout", include_decompiler=False)
         self.assertEqual("FUN_00401000", lookup["function"]["raw_name"])
-        self.assertEqual("CPSTitle_ApplyLayout", lookup["function"]["active_name"])
+        self.assertEqual("CExampleUi_ApplyLayout", lookup["function"]["active_name"])
 
     def test_sample_export_preserves_relationships_and_evidence(self):
         store = LocalEvidenceStore(SAMPLE)

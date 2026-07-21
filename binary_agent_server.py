@@ -8,6 +8,8 @@ portable semantic index cannot stop direct local evidence work.
 from __future__ import annotations
 
 import argparse
+import hmac
+import ipaddress
 import os
 import sys
 
@@ -70,10 +72,40 @@ def _route_paths():
     return [item["route"] for item in ROUTE_CATALOG]
 
 
-def create_app(export_path=None):
+def _is_loopback_host(host):
+    value = str(host or "").strip().lower()
+    if value == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(value).is_loopback
+    except ValueError:
+        return False
+
+
+def _validate_bind(host, allow_remote, remote_token):
+    if _is_loopback_host(host):
+        return
+    if not allow_remote:
+        raise ValueError("Refusing non-loopback bind; pass --allow-remote explicitly")
+    if not str(remote_token or "").strip():
+        raise ValueError("A non-loopback bind requires GHIDRA_AI_REMOTE_TOKEN")
+
+
+def create_app(export_path=None, remote_token=""):
     app = Flask(__name__)
     store = LocalEvidenceStore(export_path or DEFAULT_EXPORT_PATH)
     semantic = {"service": None, "error": None}
+    auth_token = str(remote_token or "")
+
+    @app.before_request
+    def require_remote_token():
+        if not auth_token:
+            return None
+        expected = "Bearer " + auth_token
+        actual = request.headers.get("Authorization", "")
+        if not hmac.compare_digest(actual, expected):
+            return _error("Remote API authentication required", 401)
+        return None
 
     def optional_semantic():
         if semantic["service"] is not None:
@@ -265,13 +297,16 @@ def build_parser():
     parser.add_argument("--export", dest="export_path", default=DEFAULT_EXPORT_PATH, help="Export folder to serve.")
     parser.add_argument("--host", default=os.environ.get("GHIDRA_AI_BIND_HOST", "127.0.0.1"), help="Bind host.")
     parser.add_argument("--port", type=int, default=int(os.environ.get("GHIDRA_AI_API_PORT", str(API_PORT))), help="Bind port.")
+    parser.add_argument("--allow-remote", action="store_true", help="Allow a non-loopback bind when a remote token is configured.")
     return parser
 
 
 def main(argv=None):
     args = build_parser().parse_args(argv)
     try:
-        app = create_app(args.export_path)
+        remote_token = os.environ.get("GHIDRA_AI_REMOTE_TOKEN", "")
+        _validate_bind(args.host, args.allow_remote, remote_token)
+        app = create_app(args.export_path, remote_token if not _is_loopback_host(args.host) else "")
     except (EvidenceError, OSError, ValueError) as error:
         print("[ERROR] {}".format(error), file=sys.stderr)
         return 1

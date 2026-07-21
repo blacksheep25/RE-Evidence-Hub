@@ -3,13 +3,13 @@
     "kind": "ghidra-function-name-overlay",
     "entries": {
         "00401000": {
-            "active_name": "CPSTitle_ApplyLayout",
+            "active_name": "CExampleUi_ApplyLayout",
             "decisions": [
                 {
-                    "name": "CPSTitle_ApplyLayout",
+                    "name": "CExampleUi_ApplyLayout",
                     "status": "accepted",
                     "confidence": "high",
-                    "evidence": ["The CPSTitle vtable at 00fe4c04 points to this function."],
+                    "evidence": ["The CExampleUi vtable at 00fe4c04 points to this function."],
                     "function_identity": {"assembly_sha256": "a"}
                 }
             ]

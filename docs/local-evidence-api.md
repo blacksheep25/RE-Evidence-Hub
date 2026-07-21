@@ -31,6 +31,11 @@ Command-line flags take the same role:
 python .\binary_agent_server.py --export .\project_exports\sample_program.exe --host 127.0.0.1 --port 5006
 ```
 
+Remote binding is disabled unless `--allow-remote` and
+`GHIDRA_AI_REMOTE_TOKEN` are both supplied. Every remote request must send
+`Authorization: Bearer <token>`. Put remote deployments behind TLS and network
+access controls; this local Flask server is not a public Internet service.
+
 Core routes are dependency-free apart from Flask:
 
 | Route | Purpose |
