@@ -15,6 +15,7 @@ import unittest
 
 from tools.local_evidence import LocalEvidenceStore
 import binary_agent_mcp_server as mcp
+from tools import naming_candidates
 
 
 def _write(path, value):
@@ -107,7 +108,7 @@ class AgentMcpTests(unittest.TestCase):
         result = mcp.handle(self.store, {"jsonrpc": "2.0", "id": 0, "method": "tools/list"})["result"]
         tools = {t["name"]: t for t in result["tools"]}
         names = set(tools)
-        self.assertTrue({"binary_annotate", "binary_propose_name", "binary_candidate_queue", "binary_review_candidate", "binary_next_target", "binary_progress", "binary_network_map"} <= names)
+        self.assertTrue({"binary_annotate", "binary_propose_name", "binary_candidate_queue", "binary_candidate_page", "binary_review_candidate", "binary_next_target", "binary_progress", "binary_network_map"} <= names)
         schema = tools["binary_annotate"]["inputSchema"]
         self.assertEqual(["medium", "high"], schema["properties"]["confidence"]["enum"])
         self.assertTrue({"evidence", "rationale", "evidence_refs"} <= set(schema["required"]))
@@ -139,6 +140,38 @@ class AgentMcpTests(unittest.TestCase):
         })
         self.assertEqual("accepted", reviewed["candidate_status"])
         self.assertEqual("Net_Send", self.store.lookup("00402000", include_decompiler=False)["function"]["active_name"])
+
+    def test_candidate_page_is_bounded_and_uses_a_stable_cursor(self):
+        self.store.agent_run_id = "night-page"
+        for address, name, refs in (
+            ("00401000", "UI_LoginPanel", ["interface\\outer\\login_panel.asset"]),
+            ("00402000", "Net_Send", ["send"]),
+        ):
+            lookup = self.store.lookup(address, include_decompiler=False)
+            naming_candidates.propose(self.temporary.name, "night-page", lookup, {
+                "name": name, "confidence": "high", "evidence": refs,
+                "evidence_refs": refs, "rationale": "Fixture candidate for paginated review coverage.",
+            })
+        first, failed = _call(self.store, "binary_candidate_page", {"limit": 1})
+        self.assertFalse(failed)
+        self.assertEqual(2, first["total_count"])
+        self.assertEqual(1, first["returned_count"])
+        self.assertTrue(first["next_cursor"])
+        self.assertIn("triage_warning", first)
+        second, failed = _call(self.store, "binary_candidate_page", {"limit": 1, "cursor": first["next_cursor"]})
+        self.assertFalse(failed)
+        self.assertEqual(1, second["returned_count"])
+        self.assertNotEqual(first["candidates"][0]["address"], second["candidates"][0]["address"])
+        invalid, failed = _call(self.store, "binary_candidate_page", {"cursor": "not-a-cursor"})
+        self.assertTrue(failed)
+        self.assertIn("Invalid candidate-page cursor", invalid["error"])
+
+    def test_lookup_can_cap_decompiler_text(self):
+        payload, failed = _call(self.store, "binary_lookup", {"address": "00401000", "max_decompiler_chars": 5})
+        self.assertFalse(failed)
+        self.assertEqual("load ", payload["decompiler"]["c_code"])
+        self.assertTrue(payload["decompiler"]["c_code_truncated"])
+        self.assertEqual(len("load login_panel.asset;"), payload["decompiler"]["original_c_code_chars"])
 
     def test_candidate_rejection_never_promotes(self):
         self.store.agent_run_id = "night-reject"

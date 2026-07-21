@@ -187,10 +187,14 @@ python X:\Sources\RE-Evidence-Hub\binary_agent_mcp_server.py `
 Use that command as the stdio MCP server command in the review client. The
 reviewer should:
 
-1. Call `binary_candidate_queue` to list pending entries.
-2. Call `binary_lookup` for one address and verify code/control flow.
+1. Call `binary_candidate_page` with `limit: 25` to get a bounded pending batch.
+2. Call `binary_lookup` for one address with `max_decompiler_chars: 12000`, then verify code/control flow.
 3. Call `binary_review_candidate` with `accept` or `reject` and a review note.
 4. Repeat only while it can genuinely verify the evidence.
+
+Use `next_cursor` to move through a snapshot-like review sweep. Its triage order
+is based on unverified candidate metadata, so it is useful only for prioritizing
+review time and never as grounds to accept a proposal.
 
 Acceptance is blocked if the exported function hash changed or the cited
 evidence is no longer grounded. Accepted candidates enter the annotation
@@ -201,8 +205,9 @@ auto-accept command.
 A suitable reviewer prompt is:
 
 ```markdown
-Review one pending naming candidate at a time. Call binary_candidate_queue,
-then binary_lookup for the candidate address. Verify the proposed name against
+Review one pending naming candidate at a time. Call binary_candidate_page with
+a limit of 25, then binary_lookup for the candidate address with a bounded
+decompiler response. Verify the proposed name against
 the function's concrete imports, strings, relationships, control flow, and
 assembly when needed. Accept only conservative names directly supported by the
 evidence; otherwise reject with a concise reason. Do not bulk accept.

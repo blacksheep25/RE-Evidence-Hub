@@ -6,6 +6,8 @@ Each run is isolated under ``agent_runs/<run-id>`` and can be deleted safely.
 
 from __future__ import annotations
 
+import base64
+import binascii
 import datetime
 import json
 import os
@@ -89,6 +91,74 @@ def queue(export_path: str, run_id: str, status: str = "pending") -> Dict[str, A
     data = load(export_path, run_id)
     entries = [value for _, value in sorted(data["entries"].items()) if not status or value.get("status") == status]
     return {"run_id": run_id, "path": candidate_path(export_path, run_id), "count": len(entries), "candidates": entries}
+
+
+def _triage(entry: Dict[str, Any]) -> Dict[str, Any]:
+    """Rank likely useful reviews without treating candidate evidence as truth."""
+    references = [str(value) for value in entry.get("evidence_refs", []) or [] if str(value).strip()]
+    score = min(len(references), 3)
+    reasons = ["{} cited evidence reference(s)".format(len(references))]
+    if entry.get("confidence") == "high":
+        score += 1
+        reasons.append("unverified high-confidence proposal")
+    if any("\\" in value or "/" in value for value in references):
+        score += 3
+        reasons.append("source or asset path reference")
+    generic_terms = ("memory", "resource", "invalid", "error", "exception", "helper", "handler", "utility")
+    proposed = str(entry.get("proposed_name", "")).lower()
+    if any(term in proposed for term in generic_terms):
+        score -= 3
+        reasons.append("generic proposed-name penalty")
+    return {"score": score, "reasons": reasons}
+
+
+def _encode_cursor(score: int, address: str) -> str:
+    value = json.dumps({"score": score, "address": address}, separators=(",", ":")).encode("utf-8")
+    return base64.urlsafe_b64encode(value).decode("ascii").rstrip("=")
+
+
+def _decode_cursor(cursor: str) -> tuple:
+    try:
+        padded = str(cursor) + "=" * (-len(str(cursor)) % 4)
+        value = json.loads(base64.urlsafe_b64decode(padded.encode("ascii")).decode("utf-8"))
+        return -int(value["score"]), str(value["address"])
+    except (binascii.Error, KeyError, TypeError, ValueError, UnicodeError) as exc:
+        raise ValueError("Invalid candidate-page cursor") from exc
+
+
+def page(export_path: str, run_id: str, status: str = "pending",
+         limit: int = 25, cursor: str = "") -> Dict[str, Any]:
+    """Return a stable page ordered by an explicitly untrusted triage heuristic."""
+    if status not in ("pending", "accepted", "rejected", "all"):
+        raise ValueError("Invalid candidate status: " + status)
+    limit = max(1, min(int(limit), 100))
+    data = load(export_path, run_id)
+    entries = [
+        dict(entry, triage=_triage(entry))
+        for _, entry in data["entries"].items()
+        if status == "all" or entry.get("status") == status
+    ]
+    entries.sort(key=lambda entry: (-entry["triage"]["score"], entry.get("address", "")))
+    total_count = len(entries)
+    if cursor:
+        cursor_key = _decode_cursor(cursor)
+        entries = [entry for entry in entries if (-entry["triage"]["score"], entry.get("address", "")) > cursor_key]
+    candidates = entries[:limit]
+    next_cursor = ""
+    if len(entries) > len(candidates):
+        last = candidates[-1]
+        next_cursor = _encode_cursor(last["triage"]["score"], last.get("address", ""))
+    return {
+        "run_id": run_id,
+        "path": candidate_path(export_path, run_id),
+        "status": status,
+        "total_count": total_count,
+        "returned_count": len(candidates),
+        "remaining_count": len(entries) - len(candidates),
+        "next_cursor": next_cursor or None,
+        "triage_warning": "Triage scores use unverified candidate metadata only; verify raw function evidence before review.",
+        "candidates": candidates,
+    }
 
 
 def review(store: Any, run_id: str, address: str, action: str, note: str = "") -> Dict[str, Any]:
