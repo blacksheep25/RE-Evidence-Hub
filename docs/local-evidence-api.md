@@ -121,17 +121,26 @@ the pack rather than editing it manually.
 
 ## MCP adapter
 
-The dependency-free stdio adapter exposes read-only tools to an MCP client:
+The dependency-free stdio adapter exposes evidence tools and an explicit
+reviewer workflow to an MCP client:
 
 ```powershell
 python .\binary_agent_mcp_server.py --export .\project_exports\sample_program.exe --run-id interactive-review
 ```
 
-Tools are `binary_status`, `binary_search`, `binary_lookup`,
+Evidence tools are `binary_status`, `binary_search`, `binary_lookup`,
 `binary_trace_asset`, `binary_trace_control`, `binary_trace_packet`,
 `binary_class`, and `binary_review_queue`.
 Accepted annotation names and their evidence are included in results; an LLM
 or heuristic suggestion is never presented as an accepted name.
+
+For isolated unattended naming runs, use `binary_candidate_page` to retrieve a
+bounded, cursor-based review batch. Start with `binary_candidate_preflight` to
+create a local deterministic validation and duplicate-clustering artifact, then
+use `binary_review_brief` before requesting a larger lookup. Triage scores and
+preflight buckets are workload hints, not grounds to accept a name. The
+reviewer-only `binary_review_candidate` action may accept, reject, or defer a
+candidate.
 
 ## In-process Python tools
 

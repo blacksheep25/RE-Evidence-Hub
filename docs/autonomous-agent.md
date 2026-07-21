@@ -187,25 +187,35 @@ python X:\Sources\RE-Evidence-Hub\binary_agent_mcp_server.py `
 Use that command as the stdio MCP server command in the review client. The
 reviewer should:
 
-1. Call `binary_candidate_queue` to list pending entries.
-2. Call `binary_lookup` for one address and verify code/control flow.
-3. Call `binary_review_candidate` with `accept` or `reject` and a review note.
-4. Repeat only while it can genuinely verify the evidence.
+1. Call `binary_candidate_preflight` once to validate citations and cluster repeated generic proposals locally.
+2. Call `binary_candidate_page` with `bucket: review` and `limit: 10` to get a bounded priority batch.
+3. Call `binary_review_brief` for one address. Request full `binary_lookup` or assembly only when the brief is insufficient.
+4. Call `binary_review_candidate` with `accept`, `reject`, or `defer` and a review note.
+5. Repeat only while it can genuinely verify the evidence.
+
+Use `next_cursor` to move through a snapshot-like review sweep. Its triage order
+is based on unverified candidate metadata, so it is useful only for prioritizing
+review time and never as grounds to accept a proposal.
 
 Acceptance is blocked if the exported function hash changed or the cited
 evidence is no longer grounded. Accepted candidates enter the annotation
 overlay with source `candidate-review:<run-id>`. Rejected entries remain audit
-history and never affect active names. There is intentionally no bulk
+history and never affect active names. Deferred entries remain reviewable but
+are removed from the active pending batch. There is intentionally no bulk
 auto-accept command.
 
 A suitable reviewer prompt is:
 
 ```markdown
-Review one pending naming candidate at a time. Call binary_candidate_queue,
-then binary_lookup for the candidate address. Verify the proposed name against
+Call binary_candidate_preflight once, then work one pending candidate at a
+time from binary_candidate_page with bucket review and a limit of 10. Call
+binary_review_brief first. Only call binary_lookup for the candidate address
+with bounded decompiler or assembly evidence when the brief cannot resolve it.
+Verify the proposed name against
 the function's concrete imports, strings, relationships, control flow, and
 assembly when needed. Accept only conservative names directly supported by the
-evidence; otherwise reject with a concise reason. Do not bulk accept.
+evidence. Reject clearly unsupported names; defer when more evidence is needed.
+Do not bulk accept.
 ```
 
 ## Discard an unwanted pass
