@@ -1,3 +1,4 @@
+import json
 import os
 import unittest
 from unittest import mock
@@ -24,6 +25,17 @@ class AddressAwareClient:
             "evidence": ["Calls send"], "evidence_refs": ["send"],
             "rationale": "The direct send import establishes outbound transmission.",
         }
+
+
+class ConfiguredClient(FakeClient):
+    model = "qwen2.5-coder:14b-instruct-q4_K_M"
+    provider = "ollama"
+    endpoint = "http://127.0.0.1:11434/api/chat"
+    timeout = 300
+    retries = 2
+    temperature = 0.0
+    max_tokens = 600
+    context_window = 16384
 
 
 class InvalidThenValidClient:
@@ -69,6 +81,27 @@ class AutonomousRunnerTests(unittest.TestCase):
         result = run_overnight(store, FakeClient({"action": "skip", "note": "unclear"}), "dry", dry_run=True)
         self.assertTrue(result["dry_run"])
         self.assertFalse(os.path.exists(os.path.join(self.temporary.name, "agent_runs")))
+
+    def test_run_records_immutable_model_configuration_without_api_key(self):
+        store = LocalEvidenceStore(self.temporary.name)
+        client = ConfiguredClient({"action": "skip", "note": "unclear"})
+        run_overnight(store, client, "config-test", max_targets=7, max_minutes=12.5, context_chars=3456)
+        path = os.path.join(self.temporary.name, "agent_runs", "config-test", "run_config.json")
+        with open(path, encoding="utf-8") as handle:
+            config = json.load(handle)
+        self.assertEqual("qwen2.5-coder:14b-instruct-q4_K_M", config["configuration"]["model"])
+        self.assertEqual("ollama", config["configuration"]["provider"])
+        self.assertEqual("http://127.0.0.1:11434/api/chat", config["configuration"]["endpoint"])
+        self.assertEqual(16384, config["configuration"]["context_window"])
+        self.assertEqual(3456, config["configuration"]["prompt_context_chars"])
+        self.assertEqual(7, config["configuration"]["max_targets"])
+        self.assertEqual(12.5, config["configuration"]["max_minutes"])
+        self.assertNotIn("api_key", json.dumps(config))
+
+        client.model = "different-model"
+        run_overnight(store, client, "config-test", max_targets=1)
+        with open(path, encoding="utf-8") as handle:
+            self.assertEqual("qwen2.5-coder:14b-instruct-q4_K_M", json.load(handle)["configuration"]["model"])
 
     def test_invalid_decisions_are_retired_without_stopping_the_run(self):
         store = LocalEvidenceStore(self.temporary.name)
