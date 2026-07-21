@@ -26,6 +26,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-core.txt
 
+      - name: Public release guard
+        run: python tools/public_release_check.py
+
       - name: Unit tests
         run: python -m unittest discover -s tests
 
@@ -36,7 +39,7 @@ jobs:
         run: python tools/evidence_tools.py --export samples/tiny_export status
 
       - name: Resolve an accepted annotation through the overlay
-        run: python tools/evidence_tools.py --export samples/tiny_export lookup CPSTitle_ApplyLayout --no-decompiler
+        run: python tools/evidence_tools.py --export samples/tiny_export lookup CExampleUi_ApplyLayout --no-decompiler
 
       - name: Build derived indexes on the sample
         run: |

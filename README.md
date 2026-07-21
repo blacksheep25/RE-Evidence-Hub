@@ -51,6 +51,24 @@ export is the durable record. Derived files can be rebuilt. Accepted
 function-name annotations live in `<export>\annotations\` and can be deleted
 without changing raw Ghidra output.
 
+## Public Repository Safety
+
+This repository contains tooling and a hand-authored synthetic fixture only.
+Do not commit target binaries, raw exports, decompiler output, extracted assets,
+runtime captures, credentials, or unattended model artifacts. The CI release
+guard rejects common target-artifact paths and obvious credential formats, but
+it is not a substitute for confirming that every published file is authorised.
+
+The HTTP API is loopback-only by default. Remote use requires explicit opt-in,
+a bearer token, TLS, and network access controls; see [Security policy](SECURITY.md).
+
+## License
+
+The repository tooling and its synthetic fixture are licensed under
+[Apache-2.0](LICENSE). This license does not grant rights to a target binary,
+export, runtime capture, or other third-party material: publish those only when
+you have the authority to do so.
+
 ## Quick Start
 
 1. Open and analyse a program in Ghidra.

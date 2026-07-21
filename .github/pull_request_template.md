@@ -22,6 +22,7 @@ docs:, refactor:, chore:). One logical change per PR; prefer small PRs.
 - [ ] One logical change; PR title is Conventional-Commit style
 - [ ] `exporters/` and `util/` still import no host-only deps (stay Ghidra-runnable)
 - [ ] No target artifacts committed (`*.exe`/`*.dll`/`*.bin`, export folders, `*.sqlite3`, copyrighted assets)
+- [ ] `python tools/public_release_check.py` passes; no credentials or target-derived exports are included
 - [ ] Raw data does not depend on derived files; annotations stay a reversible overlay
 - [ ] Maintainer sign-off obtained before any: export-JSON format change, HTTP route / MCP tool contract change, new dependency, or destructive/irreversible action
 - [ ] Docs updated if behavior changed (`docs/current-state.md`, relevant `docs/`)

@@ -9,7 +9,7 @@ from tools.build_name_review_queue import build_review_queue, save_review_queue
 from tools.analysis_tools import AnalysisTools
 from tools.evidence_tools import EvidenceTools, build_parser, run_command
 from tools.local_evidence import EvidenceError, LocalEvidenceStore
-from binary_agent_server import create_app
+from binary_agent_server import _validate_bind, create_app
 
 
 def write_json(path, value):
@@ -66,13 +66,13 @@ class LocalEvidenceStoreTests(unittest.TestCase):
             "functions": [], "references": [], "value": "None",
         }, {
             "address": "01130470", "name": "", "datatype": "char[20]", "size": 20,
-            "functions": [], "references": [], "value": ".?AVCPSTitle@@",
+            "functions": [], "references": [], "value": ".?AVCExampleUi@@",
         }])
         write_json(os.path.join(root, "annotations", "function_names.json"), {
             "schema_version": 1, "kind": "ghidra-function-name-overlay", "entries": {
-                "00401000": {"active_name": "CPSTitle_ApplyLayout", "decisions": [{
-                    "name": "CPSTitle_ApplyLayout", "status": "accepted", "confidence": "high",
-                    "evidence": ["The CPSTitle vtable at 00fe4c04 points to this function."], "function_identity": {"assembly_sha256": "a"},
+                "00401000": {"active_name": "CExampleUi_ApplyLayout", "decisions": [{
+                    "name": "CExampleUi_ApplyLayout", "status": "accepted", "confidence": "high",
+                    "evidence": ["The CExampleUi vtable at 00fe4c04 points to this function."], "function_identity": {"assembly_sha256": "a"},
                 }]},
             },
         })
@@ -82,9 +82,9 @@ class LocalEvidenceStoreTests(unittest.TestCase):
         temporary = self.make_export()
         self.addCleanup(temporary.cleanup)
         store = LocalEvidenceStore(temporary.name)
-        lookup = store.lookup("CPSTitle_ApplyLayout", include_decompiler=False)
+        lookup = store.lookup("CExampleUi_ApplyLayout", include_decompiler=False)
         self.assertEqual("FUN_00401000", lookup["function"]["raw_name"])
-        self.assertEqual("CPSTitle_ApplyLayout", lookup["function"]["active_name"])
+        self.assertEqual("CExampleUi_ApplyLayout", lookup["function"]["active_name"])
         self.assertEqual("interface\\outer\\login_panel.asset", lookup["evidence"]["strings"][0]["value"])
         self.assertEqual("FUN_00402000", lookup["relationships"]["callees"][0]["raw_name"])
         self.assertIsNone(lookup["relationships"]["callees"][0]["active_name"])
@@ -123,23 +123,23 @@ class LocalEvidenceStoreTests(unittest.TestCase):
         overlay_path = os.path.join(temporary.name, "annotations", "function_names.json")
         with open(overlay_path, encoding="utf-8") as handle:
             overlay = json.load(handle)
-        overlay["entries"]["00401000"]["active_name"] = "CPSTitle_ReviewedLayout"
+        overlay["entries"]["00401000"]["active_name"] = "CExampleUi_ReviewedLayout"
         overlay["entries"]["00401000"]["decisions"].append({
-            "name": "CPSTitle_ReviewedLayout", "status": "accepted", "confidence": "high",
+            "name": "CExampleUi_ReviewedLayout", "status": "accepted", "confidence": "high",
             "evidence": ["reviewed fixture evidence"], "function_identity": {"assembly_sha256": "a"},
         })
         write_json(overlay_path, overlay)
         store.reload_annotations()
-        self.assertEqual("CPSTitle_ReviewedLayout", store.lookup("00401000", include_decompiler=False)["function"]["active_name"])
+        self.assertEqual("CExampleUi_ReviewedLayout", store.lookup("00401000", include_decompiler=False)["function"]["active_name"])
 
     def test_class_registry_uses_explicit_annotation_evidence_only(self):
         temporary = self.make_export()
         self.addCleanup(temporary.cleanup)
         registry = build_registry(temporary.name)
         save_registry(temporary.name, registry)
-        result = LocalEvidenceStore(temporary.name).class_info("CPSTitle")
+        result = LocalEvidenceStore(temporary.name).class_info("CExampleUi")
         self.assertTrue(result["available"])
-        self.assertEqual("CPSTitle_ApplyLayout", result["classes"][0]["accepted_methods"][0]["active_name"])
+        self.assertEqual("CExampleUi_ApplyLayout", result["classes"][0]["accepted_methods"][0]["active_name"])
         self.assertEqual("00fe4c04", result["classes"][0]["vtables"][0]["address"])
         self.assertEqual("01130470", result["classes"][0]["rtti_type_descriptors"][0]["address"])
 
@@ -158,8 +158,8 @@ class LocalEvidenceStoreTests(unittest.TestCase):
         temporary = self.make_export()
         self.addCleanup(temporary.cleanup)
         tools = EvidenceTools(temporary.name)
-        result = tools.execute_tool("lookup", {"address": "CPSTitle_ApplyLayout", "include_decompiler": False})
-        self.assertEqual("CPSTitle_ApplyLayout", result["function"]["active_name"])
+        result = tools.execute_tool("lookup", {"address": "CExampleUi_ApplyLayout", "include_decompiler": False})
+        self.assertEqual("CExampleUi_ApplyLayout", result["function"]["active_name"])
         self.assertEqual("FUN_00401000", result["function"]["raw_name"])
         self.assertTrue(any(item["name"] == "lookup" for item in tools.tool_definitions()))
 
@@ -168,12 +168,12 @@ class LocalEvidenceStoreTests(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         args = build_parser().parse_args([
             "--export", temporary.name,
-            "lookup", "CPSTitle_ApplyLayout",
+            "lookup", "CExampleUi_ApplyLayout",
             "--no-decompiler",
             "--assembly",
         ])
         result = run_command(args)
-        self.assertEqual("CPSTitle_ApplyLayout", result["function"]["active_name"])
+        self.assertEqual("CExampleUi_ApplyLayout", result["function"]["active_name"])
         self.assertIn("assembly", result)
         self.assertNotIn("decompiler", result)
 
@@ -181,10 +181,10 @@ class LocalEvidenceStoreTests(unittest.TestCase):
         temporary = self.make_export()
         self.addCleanup(temporary.cleanup)
         tools = AnalysisTools(temporary.name)
-        results = tools.search("CPSTitle")
+        results = tools.search("CExampleUi")
         self.assertEqual("00401000", results[0]["address"])
-        self.assertEqual("CPSTitle_ApplyLayout", results[0]["name"])
-        self.assertEqual("CPSTitle_ApplyLayout", tools.get_function("00401000")["analysis"]["active_name"])
+        self.assertEqual("CExampleUi_ApplyLayout", results[0]["name"])
+        self.assertEqual("CExampleUi_ApplyLayout", tools.get_function("00401000")["analysis"]["active_name"])
 
     def test_http_api_exposes_health_and_route_catalog(self):
         temporary = self.make_export()
@@ -196,6 +196,18 @@ class LocalEvidenceStoreTests(unittest.TestCase):
         routes = client.get("/routes")
         self.assertEqual(200, routes.status_code)
         self.assertTrue(any(item["route"] == "/lookup" for item in routes.get_json()["routes"]))
+
+    def test_remote_http_api_requires_explicit_bind_and_bearer_token(self):
+        with self.assertRaises(ValueError):
+            _validate_bind("0.0.0.0", False, "token")
+        with self.assertRaises(ValueError):
+            _validate_bind("0.0.0.0", True, "")
+        _validate_bind("0.0.0.0", True, "token")
+        temporary = self.make_export()
+        self.addCleanup(temporary.cleanup)
+        client = create_app(temporary.name, remote_token="token").test_client()
+        self.assertEqual(401, client.get("/health").status_code)
+        self.assertEqual(200, client.get("/health", headers={"Authorization": "Bearer token"}).status_code)
 
     def test_status_reports_optional_artifact_availability(self):
         temporary = self.make_export()
