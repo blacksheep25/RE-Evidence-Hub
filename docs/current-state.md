@@ -78,7 +78,8 @@ project layout (`project_layout.py`); networking reconstruction
 explicit Ollama context-window control, compact prompts, and guard-compatible
 evidence-reference lists; performance
 benchmarking (`tools/benchmark_search.py`); and mutable-artifact schema tooling
-(`tools/migrate_artifacts.py`).
+(`tools/migrate_artifacts.py`); and conservative cross-export comparison
+(`tools/export_comparison.py`).
 
 ## Known integration gaps
 

@@ -20,6 +20,7 @@ Subcommands:
   semantic-index ... Build the one supported portable semantic index.
   migrate-artifacts ... Audit or migrate mutable derived-artifact schemas.
   benchmark ...    Benchmark supported store/search latency on an export.
+  compare ...      Compare two exports using exact hashes and structural evidence.
   post-process ... Rebuild AI context, summaries, Markdown, and search index.
   validate ...   Validate an export (tools/validate_export.py).
 
@@ -69,6 +70,7 @@ DELEGATES = {
     "semantic-index": ("tools.semantic_index", "main", {"--model", "--batch-size", "--max-chars"}),
     "migrate-artifacts": ("tools.migrate_artifacts", "main", {"--backup-root"}),
     "benchmark": ("tools.benchmark_search", "main", {"--query", "--repeats", "--output"}),
+    "compare": ("tools.export_comparison", "main", {"--threshold", "--limit", "--output"}),
     "post-process": ("post_process", "main", set()),
 }
 
@@ -488,7 +490,7 @@ def main(argv=None):
     if command in DELEGATES:
         module_name, func_name, value_flags = DELEGATES[command]
         if value_flags is not None:
-            if command == "network-capture":
+            if command in ("network-capture", "compare"):
                 if len(_positionals(rest, value_flags)) < 2:
                     rest = [host_config.resolve_export_path()] + rest
             else:

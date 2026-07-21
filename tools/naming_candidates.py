@@ -365,7 +365,8 @@ def review_brief(store: Any, run_id: str, address: str,
     }
 
 
-def review(store: Any, run_id: str, address: str, action: str, note: str = "") -> Dict[str, Any]:
+def review(store: Any, run_id: str, address: str, action: str, note: str = "",
+           reviewer: str = "") -> Dict[str, Any]:
     if action not in ("accept", "reject", "defer"):
         raise ValueError("action must be accept, reject, or defer")
     resolved = store.resolve_address(address)
@@ -397,6 +398,7 @@ def review(store: Any, run_id: str, address: str, action: str, note: str = "") -
                 store.export_path, resolved, entry["proposed_name"], entry["confidence"],
                 status="accepted", source="candidate-review:{}".format(run_id),
                 evidence=entry.get("evidence", []), rationale=entry.get("rationale", ""),
+                reviewer=reviewer,
             )
             store.reload_annotations()
         elif action == "reject":

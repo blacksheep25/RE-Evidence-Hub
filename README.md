@@ -126,6 +126,7 @@ That adds console commands backed by the same code (`revhub`, plus
 | `revhub overnight --model <model>` | Run a bounded/resumable local-model naming pass. |
 | `revhub semantic-index` | Build the optional portable per-export semantic index. |
 | `revhub benchmark` | Measure supported store/search latency on the active export. |
+| `revhub compare <baseline> <candidate>` | Write a bounded derived comparison report with exact exported-hash matches and clearly-labelled structural leads. |
 | `revhub post-process` | Rebuild AI context, summaries, Markdown, and the search index without reopening Ghidra. |
 
 For a first unattended local-model pass, follow the Windows-first
