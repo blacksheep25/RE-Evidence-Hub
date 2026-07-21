@@ -33,6 +33,9 @@ caller/callee values copied verbatim from allowed_evidence_refs. Never use an
 address as an evidence ref. Prefer skip to an inferred class, protocol, game
 feature, or side effect. Do not include Markdown."""
 
+RUN_CONFIG_NAME = "run_config.json"
+RUN_CONFIG_SCHEMA_VERSION = 1
+
 
 def _utc_now() -> str:
     return datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -186,10 +189,49 @@ def _append_log(export_path: str, run_id: str, event: Dict[str, Any]) -> None:
             handle.write(json.dumps(event, ensure_ascii=False) + "\n")
 
 
+def _run_config_path(export_path: str, run_id: str) -> str:
+    return os.path.join(run_directory(export_path, run_id), RUN_CONFIG_NAME)
+
+
+def _write_run_config(store: LocalEvidenceStore, client: Any, run_id: str,
+                      max_targets: int, max_minutes: float,
+                      context_chars: int) -> None:
+    """Persist the initial model settings once without exposing API secrets."""
+    path = _run_config_path(store.export_path, run_id)
+    config = {
+        "schema_version": RUN_CONFIG_SCHEMA_VERSION,
+        "created_utc": _utc_now(),
+        "run_id": run_id,
+        "runner": "autonomous_naming_runner",
+        "configuration": {
+            "model": getattr(client, "model", None),
+            "provider": getattr(client, "provider", None),
+            "endpoint": getattr(client, "endpoint", None),
+            "timeout_seconds": getattr(client, "timeout", None),
+            "retries": getattr(client, "retries", None),
+            "temperature": getattr(client, "temperature", None),
+            "max_output_tokens": getattr(client, "max_tokens", None),
+            "context_window": getattr(client, "context_window", None),
+            "prompt_context_chars": context_chars,
+            "max_targets": max_targets,
+            "max_minutes": max_minutes,
+        },
+    }
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with locked_file(path):
+        if os.path.exists(path):
+            return
+        with open(path, "x", encoding="utf-8", newline="\n") as handle:
+            json.dump(config, handle, indent=2, sort_keys=True)
+            handle.write("\n")
+
+
 def run_overnight(store: LocalEvidenceStore, client: Any, run_id: str,
                   max_targets: int = 100, max_minutes: float = 480,
                   context_chars: int = 12000, dry_run: bool = False) -> Dict[str, Any]:
     store.agent_run_id = run_id
+    if not dry_run:
+        _write_run_config(store, client, run_id, max_targets, max_minutes, context_chars)
     started = time.monotonic()
     processed = proposed = skipped = deferred = errors = invalid_decisions = fatal_errors = 0
     exhausted = False
