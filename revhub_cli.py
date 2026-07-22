@@ -14,6 +14,7 @@ Subcommands:
   classes ...    Build the class/vtable registry (tools/build_class_registry.py).
   review-queue . Build the name review queue (tools/build_name_review_queue.py).
   network ...    Build the networking reconstruction evidence pack.
+  campaign-status ... Show the next safe phase and progress for one agent run.
   overnight ...  Run a bounded local-model naming pass into isolated candidates.
   network-capture ... Import authorised JSON/JSONL/CSV runtime observations.
   protocol-contract ... Create or validate a reviewed network contract.
@@ -64,6 +65,7 @@ DELEGATES = {
     "classes": ("tools.build_class_registry", "main", {"--output"}),
     "review-queue": ("tools.build_name_review_queue", "main", {"--output", "--limit"}),
     "network": ("tools.network_reconstruction", "main", {"--output-dir", "--limit"}),
+    "campaign-status": ("tools.campaign_status", "main", {"--run-id"}),
     "overnight": ("tools.autonomous_naming_runner", "main", {"--model", "--endpoint", "--provider", "--run-id", "--api-key", "--max-targets", "--max-minutes", "--context-chars", "--context-window", "--timeout", "--retries", "--temperature", "--max-tokens"}),
     "network-capture": ("tools.network_capture", "main", {"--source", "--output"}),
     "protocol-contract": ("tools.protocol_contract", "main", {"--output"}),

@@ -205,6 +205,41 @@ Use the annotation history command to inspect later corrections:
 python .\tools\function_annotations.py history <export-path> 00401000
 ```
 
+## Continuous Codex or Claude campaigns
+
+Use one task for discovery and a fresh task for review. This preserves an
+independent reviewer while avoiding a new chat for every candidate page.
+
+At any point, ask the MCP server for the exact durable state:
+
+```powershell
+revhub campaign-status --run-id <run-id>
+```
+
+The JSON field `next_action` is one of `run_preflight`, `review_pending`,
+`inspect_preflight_exceptions`, or `discover`. `review.completion_percent`
+counts only candidates eligible for review, not every function in the binary.
+The same summary is available to MCP clients through `binary_campaign_status`.
+
+For a reviewer, give one instruction that pages internally until the queue is
+empty instead of ending after the first page:
+
+```text
+Call binary_campaign_status. If it says run_preflight, call
+binary_candidate_preflight with refresh false. Then continue serially until
+binary_campaign_status reports no pending reviewable candidates: request a
+candidate page with bucket review and limit 25, review each candidate through
+binary_review_brief first, and accept, reject, or defer it. Use full lookup
+only when the brief is insufficient. Report progress after each 25 decisions,
+but do not stop at a page boundary. Never bulk accept or modify raw exports.
+```
+
+For a discovery task, keep the work focused but let it process several bounded
+checkpoints before it stops. For example, inspect up to 100 selected network or
+login functions in groups of 25, report each checkpoint, and write proposals
+only with `binary_propose_name`. A separate reviewer task should clear the
+resulting proposal queue before the next discovery campaign.
+
 ## Simple choices after review
 
 | Situation | What to do |
