@@ -147,6 +147,11 @@ TOOLS = [
         "inputSchema": {"type": "object", "properties": {"refresh": {"type": "boolean", "default": False}}},
     },
     {
+        "name": "binary_campaign_status",
+        "description": "Read-only summary of this run's candidate states, review completion percentage, investigation ledger, and next safe workflow phase. It never rebuilds preflight or writes evidence.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
         "name": "binary_review_brief",
         "description": "Return a compact, grounded evidence brief for one pending candidate. Request full binary_lookup or assembly only when this brief is insufficient.",
         "inputSchema": {
@@ -357,6 +362,8 @@ def call_tool(store, name, arguments):
         )
     if name == "binary_candidate_preflight":
         return naming_candidates.preflight(store, _run_id(store), bool(arguments.get("refresh", False)))
+    if name == "binary_campaign_status":
+        return naming_candidates.campaign_status(store, _run_id(store))
     if name == "binary_review_brief":
         return naming_candidates.review_brief(
             store, _run_id(store), arguments.get("address", ""),

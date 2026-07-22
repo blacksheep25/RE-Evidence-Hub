@@ -108,3 +108,8 @@ annotations and is the preferred interactive route, whether accessed through
 HTTP, MCP, or in-process Python. Semantic/LLM endpoints remain optional leads
 only. In particular, names and decompiler output are helpful clues, not ground
 truth unless an accepted annotation records the concrete evidence.
+
+`revhub campaign-status --run-id <run-id>` and the read-only MCP
+`binary_campaign_status` tool summarize the isolated candidate run, its
+reviewable completion percentage, its investigation ledger, and the next safe
+workflow phase without changing raw evidence or review state.

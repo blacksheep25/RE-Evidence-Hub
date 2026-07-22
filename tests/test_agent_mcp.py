@@ -135,7 +135,7 @@ class AgentMcpTests(unittest.TestCase):
         result = mcp.handle(self.store, {"jsonrpc": "2.0", "id": 0, "method": "tools/list"})["result"]
         tools = {t["name"]: t for t in result["tools"]}
         names = set(tools)
-        self.assertTrue({"binary_annotate", "binary_propose_name", "binary_candidate_queue", "binary_candidate_page", "binary_candidate_preflight", "binary_review_brief", "binary_review_candidate", "binary_next_target", "binary_progress", "binary_network_map"} <= names)
+        self.assertTrue({"binary_annotate", "binary_propose_name", "binary_candidate_queue", "binary_candidate_page", "binary_candidate_preflight", "binary_campaign_status", "binary_review_brief", "binary_review_candidate", "binary_next_target", "binary_progress", "binary_network_map"} <= names)
         schema = tools["binary_annotate"]["inputSchema"]
         self.assertEqual(["medium", "high"], schema["properties"]["confidence"]["enum"])
         self.assertTrue({"evidence", "rationale", "evidence_refs"} <= set(schema["required"]))
@@ -228,6 +228,31 @@ class AgentMcpTests(unittest.TestCase):
         deferred_page, failed = _call(self.store, "binary_candidate_page", {"status": "deferred", "bucket": "review"})
         self.assertFalse(failed)
         self.assertEqual(1, deferred_page["total_count"])
+
+    def test_campaign_status_is_read_only_and_guides_the_next_phase(self):
+        self.store.agent_run_id = "campaign-status"
+        _call(self.store, "binary_propose_name", {
+            "address": "00402000", "name": "Net_Send", "confidence": "high",
+            "evidence": ["Calls the send import"], "evidence_refs": ["send"],
+            "rationale": "The direct send import establishes network transmit behavior.",
+        })
+        before, failed = _call(self.store, "binary_campaign_status")
+        self.assertFalse(failed)
+        self.assertEqual("run_preflight", before["next_action"])
+        self.assertFalse(before["preflight"]["available"])
+
+        _call(self.store, "binary_candidate_preflight")
+        ready, failed = _call(self.store, "binary_campaign_status")
+        self.assertFalse(failed)
+        self.assertEqual("review_pending", ready["next_action"])
+        self.assertEqual(1, ready["review"]["reviewable"])
+        self.assertEqual(0.0, ready["review"]["completion_percent"])
+
+        _call(self.store, "binary_review_candidate", {"address": "00402000", "action": "accept"})
+        complete, failed = _call(self.store, "binary_campaign_status")
+        self.assertFalse(failed)
+        self.assertEqual("discover", complete["next_action"])
+        self.assertEqual(100.0, complete["review"]["completion_percent"])
 
     def test_candidate_rejection_never_promotes(self):
         self.store.agent_run_id = "night-reject"

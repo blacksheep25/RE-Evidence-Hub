@@ -244,6 +244,67 @@ def _current_preflight(export_path: str, run_id: str, candidates: Dict[str, Any]
     return value if value.get("candidate_fingerprint") == _candidate_fingerprint(candidates) else {}
 
 
+def campaign_status(store: Any, run_id: str) -> Dict[str, Any]:
+    """Summarize a run and identify its next safe workflow phase.
+
+    This is deliberately read-only. It uses the latest compatible preflight
+    artifact when available, rather than rebuilding it as a side effect.
+    """
+    candidates = load(store.export_path, run_id)
+    current_preflight = _current_preflight(store.export_path, run_id, candidates)
+    entries = candidates.get("entries", {})
+    statuses = ("pending", "accepted", "rejected", "deferred")
+    all_counts = {status: 0 for status in statuses}
+    for entry in entries.values():
+        status = entry.get("status", "pending")
+        if status in all_counts:
+            all_counts[status] += 1
+
+    review_counts = {status: 0 for status in statuses}
+    exception_counts = {"parked": 0, "invalid": 0, "stale": 0}
+    if current_preflight:
+        for address, entry in entries.items():
+            status = entry.get("status", "pending")
+            bucket = current_preflight.get("entries", {}).get(address, {}).get("bucket", "")
+            if bucket == "review" and status in review_counts:
+                review_counts[status] += 1
+            elif bucket in exception_counts and status == "pending":
+                exception_counts[bucket] += 1
+
+    review_total = sum(review_counts.values())
+    review_completed = review_total - review_counts["pending"]
+    if entries and not current_preflight:
+        next_action = "run_preflight"
+    elif review_counts["pending"]:
+        next_action = "review_pending"
+    elif any(exception_counts.values()):
+        next_action = "inspect_preflight_exceptions"
+    else:
+        next_action = "discover"
+
+    from tools.investigation_ledger import summary as ledger_summary
+    return {
+        "run_id": run_id,
+        "candidate_file": candidate_path(store.export_path, run_id),
+        "candidate_revision": int(candidates.get("revision", 0)),
+        "candidates": {"total": len(entries), "by_status": all_counts},
+        "preflight": {
+            "available": bool(current_preflight),
+            "buckets": current_preflight.get("summary", {}).get("buckets", {}),
+            "duplicate_clusters": current_preflight.get("summary", {}).get("duplicate_clusters", 0),
+            "pending_exceptions": exception_counts,
+        },
+        "review": {
+            "reviewable": review_total,
+            "by_status": review_counts,
+            "completed": review_completed,
+            "completion_percent": round((100.0 * review_completed / review_total), 2) if review_total else 0.0,
+        },
+        "investigation": ledger_summary(store, store.export_path, run_id=run_id),
+        "next_action": next_action,
+    }
+
+
 def _compact_text(value: Any, limit: int) -> str:
     text = str(value or "")
     return text if len(text) <= limit else text[:limit] + "..."
