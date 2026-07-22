@@ -226,6 +226,17 @@ def tool_result(value, failed=False):
     }
 
 
+def serialize_message(value):
+    """Return transport-safe JSON even when Windows uses a legacy code page.
+
+    Tool content can include Unicode decompiler text. Escaping it here keeps a
+    stdio MCP response valid on a cp1252 console; JSON clients decode the text
+    back to Unicode after parsing.
+    """
+
+    return json.dumps(value, ensure_ascii=True)
+
+
 def _run_id(store):
     """Return the isolated MCP run id, including for in-process adapters."""
 
@@ -440,9 +451,9 @@ def main(argv=None):
             message = json.loads(line)
             result = handle(store, message)
             if result is not None:
-                print(json.dumps(result, ensure_ascii=False), flush=True)
+                print(serialize_message(result), flush=True)
         except json.JSONDecodeError as exc:
-            print(json.dumps(error(None, -32700, "Invalid JSON: {}".format(exc))), flush=True)
+            print(serialize_message(error(None, -32700, "Invalid JSON: {}".format(exc))), flush=True)
         except Exception as exc:  # never let one malformed message kill an overnight run
             print("[WARN] skipped message: {}".format(exc), file=sys.stderr, flush=True)
     return 0

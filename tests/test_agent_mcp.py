@@ -104,6 +104,33 @@ class AgentMcpTests(unittest.TestCase):
         self.assertEqual(7, response["id"])
         self.assertIn("tools", response["result"]["capabilities"])
 
+    def test_stdio_escapes_unicode_for_legacy_windows_console_code_pages(self):
+        script = os.path.join(os.path.dirname(os.path.dirname(__file__)), "binary_agent_mcp_server.py")
+        function_path = os.path.join(self.temporary.name, "functions", "00401000.json")
+        with open(function_path, encoding="utf-8") as handle:
+            function = json.load(handle)
+        function["decompiler"]["c_code"] = "load 안녕 login_panel.asset;"
+        _write(function_path, function)
+        request = {
+            "jsonrpc": "2.0", "id": 8, "method": "tools/call",
+            "params": {"name": "binary_lookup", "arguments": {"address": "00401000", "include_decompiler": True}},
+        }
+        environment = dict(os.environ)
+        environment["PYTHONIOENCODING"] = "cp1252"
+        process = subprocess.run(
+            [sys.executable, os.path.abspath(script), "--export", self.temporary.name],
+            input=json.dumps(request) + "\n",
+            text=True,
+            capture_output=True,
+            env=environment,
+            timeout=15,
+        )
+        self.assertEqual(0, process.returncode, process.stderr)
+        self.assertIn("\\u", process.stdout)
+        response = json.loads(process.stdout.strip())
+        content = json.loads(response["result"]["content"][0]["text"])
+        self.assertIn("안녕", content["decompiler"]["c_code"])
+
     def test_tools_list_includes_write_and_queue_tools(self):
         result = mcp.handle(self.store, {"jsonrpc": "2.0", "id": 0, "method": "tools/list"})["result"]
         tools = {t["name"]: t for t in result["tools"]}
